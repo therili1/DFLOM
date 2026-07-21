@@ -1,0 +1,167 @@
+<Page
+    x:Class="Launcher.Views.ThemeEditorPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:Launcher.ViewModels"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="24" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Vertical">
+                <TextBlock Text="Редактор Тем" Style="{ThemeResource TitleTextBlockStyle}" FontWeight="Bold"/>
+                <TextBlock Text="Оберіть готову тему або зберіть власну — усі зміни застосовуються миттєво" Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button Content="Скинути до стандартних" Command="{x:Bind ViewModel.ResetToDefaultsCommand}"/>
+                <Button Content="Зберегти тему" Style="{ThemeResource AccentButtonStyle}" Command="{x:Bind ViewModel.SaveThemeCommand}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Preset gallery -->
+        <Border Grid.Row="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Готові теми" FontWeight="Bold" Style="{ThemeResource BodyTextBlockStyle}"/>
+                <ItemsControl ItemsSource="{x:Bind ViewModel.PresetNames}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="8"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                            <Button Content="{x:Bind}" Click="PresetButton_Click" Tag="{x:Bind}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{x:Bind ViewModel.ActiveThemeName, Mode=OneWay}" FontSize="11" Opacity="0.7"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Editor Content -->
+        <Grid Grid.Row="2" ColumnSpacing="24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Column 1: Colors -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="16">
+                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Палітра кольорів" FontWeight="Bold" Style="{ThemeResource BodyTextBlockStyle}"/>
+
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Accent Color" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                <TextBox Text="{x:Bind ViewModel.AccentColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Background Color" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                <TextBox Text="{x:Bind ViewModel.BackgroundColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Glow Color" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                <TextBox Text="{x:Bind ViewModel.GlowColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Hover Color" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                <TextBox Text="{x:Bind ViewModel.HoverColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Border Color" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                <TextBox Text="{x:Bind ViewModel.BorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Card Color" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                <TextBox Text="{x:Bind ViewModel.CardColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Text Color" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                <TextBox Text="{x:Bind ViewModel.TextColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Фон" FontWeight="Bold" Style="{ThemeResource BodyTextBlockStyle}"/>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Адреса фонового зображення (URL)" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                                <TextBox Text="{x:Bind ViewModel.BackgroundUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Column 2: FX -->
+            <StackPanel Grid.Column="1" Spacing="16">
+                <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Ефекти прозорості та розмиття" FontWeight="Bold" Style="{ThemeResource BodyTextBlockStyle}"/>
+
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Прозорість (Opacity)" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                            <Slider Minimum="0.1" Maximum="1.0" StepFrequency="0.05" Value="{x:Bind ViewModel.Opacity, Mode=TwoWay}"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Розмиття (Blur px)" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                            <Slider Minimum="0" Maximum="40" StepFrequency="1" Value="{x:Bind ViewModel.Blur, Mode=TwoWay}"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Радіус закруглення вікон (Radius px)" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                            <Slider Minimum="0" Maximum="24" StepFrequency="1" Value="{x:Bind ViewModel.CornerRadius, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Шрифти системи" FontWeight="Bold" Style="{ThemeResource BodyTextBlockStyle}"/>
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Сімейство шрифтів" FontSize="11" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      ItemsSource="{x:Bind ViewModel.AvailableFonts}"
+                                      SelectedItem="{x:Bind ViewModel.SelectedFontOption, Mode=TwoWay}"/>
+
+                            <TextBox Header="Назва шрифту (має бути встановлений у Windows)"
+                                     Text="{x:Bind ViewModel.FontFamily, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Visibility="{x:Bind ViewModel.IsCustomFont, Mode=OneWay}"/>
+
+                            <TextBlock Text="⚠ Segoe UI/Segoe UI Variable гарантовано є в Windows. Inter, Roboto, JetBrains Mono і Minecraft Seven треба встановити в систему окремо — інакше застосунок мовчки покаже дефолтний шрифт замість обраного."
+                                       FontSize="10" Opacity="0.6" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Живий приклад" FontWeight="Bold" Style="{ThemeResource BodyTextBlockStyle}"/>
+                        <Border CornerRadius="{x:Bind ViewModel.ToCornerRadius(ViewModel.CornerRadius), Mode=OneWay}" Padding="16" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Так виглядатиме картка" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                <Button Content="Кнопка з акцентом" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>
