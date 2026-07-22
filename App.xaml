@@ -1,0 +1,40 @@
+<Application
+    x:Class="Launcher.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:Launcher.Converters"
+    xmlns:local="using:Launcher">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <!-- Modern Fluent Theme Resource Overrides can be placed here -->
+            </ResourceDictionary.MergedDictionaries>
+
+            <converters:StringEqualsToVisibilityConverter x:Key="StringEqualsToVisibilityConverter"/>
+            <converters:StringNotEqualsToVisibilityConverter x:Key="StringNotEqualsToVisibilityConverter"/>
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter"/>
+            <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+            <converters:RamMbConverter x:Key="RamMbConverter"/>
+            <converters:IntToDownloadsStringConverter x:Key="IntToDownloadsStringConverter"/>
+            <converters:PercentDoubleConverter x:Key="PercentDoubleConverter"/>
+            <converters:MbDoubleConverter x:Key="MbDoubleConverter"/>
+            <converters:CelsiusDoubleConverter x:Key="CelsiusDoubleConverter"/>
+            <converters:StringFormatConverter x:Key="StringFormatConverter"/>
+            <converters:DateTimeToStringConverter x:Key="DateTimeToStringConverter"/>
+            <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+            <converters:PathToImageConverter x:Key="PathToImageConverter"/>
+            <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
+            <converters:ZeroCountToVisibilityConverter x:Key="ZeroCountToVisibilityConverter"/>
+            <converters:ModCountConverter x:Key="ModCountConverter"/>
+            <converters:WorldCountConverter x:Key="WorldCountConverter"/>
+            <converters:LoaderIconConverter x:Key="LoaderIconConverter"/>
+            <converters:NullableDateTimeConverter x:Key="NullableDateTimeConverter"/>
+            <converters:CardSizeToWidthConverter x:Key="CardSizeToWidthConverter"/>
+            <converters:EnumToStringConverter x:Key="EnumToStringConverter"/>
+            <converters:DownloadStatusLineConverter x:Key="DownloadStatusLineConverter"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

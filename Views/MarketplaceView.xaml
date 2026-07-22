@@ -1,0 +1,216 @@
+<Page
+    x:Class="Launcher.Views.MarketplaceView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:Launcher.Services"
+    xmlns:viewmodels="using:Launcher.ViewModels"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="24" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0">
+            <StackPanel Orientation="Vertical">
+                <TextBlock Text="Каталог Модифікацій &amp; Додатків" Style="{ThemeResource TitleTextBlockStyle}" FontWeight="Bold"/>
+                <TextBlock Text="Завантажуйте та встановлюйте найкращі моди, ресурспаки та шейдери з інтегрованого маркетплейсу" Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Search bar -->
+        <Grid Grid.Row="1" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <AutoSuggestBox PlaceholderText="Введіть назву моду для пошуку..." Text="{x:Bind ViewModel.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" QueryIcon="Find" QuerySubmitted="SearchBox_QuerySubmitted"/>
+
+            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" SelectedValue="{x:Bind ViewModel.SelectedType, Mode=TwoWay}" SelectedValuePath="Tag">
+                <ComboBoxItem Content="Всі категорії" Tag="all"/>
+                <ComboBoxItem Content="Моди" Tag="mod" IsSelected="True"/>
+                <ComboBoxItem Content="Ресурспаки" Tag="resourcepack"/>
+                <ComboBoxItem Content="Шейдери" Tag="shader"/>
+                <ComboBoxItem Content="Збірки (Modpack)" Tag="modpack"/>
+            </ComboBox>
+
+            <ComboBox Grid.Column="2" HorizontalAlignment="Stretch" SelectedValue="{x:Bind ViewModel.SelectedLoader, Mode=TwoWay}" SelectedValuePath="Tag">
+                <ComboBoxItem Content="Будь-який лоадер" Tag="all" IsSelected="True"/>
+                <ComboBoxItem Content="Fabric" Tag="fabric"/>
+                <ComboBoxItem Content="Forge" Tag="forge"/>
+                <ComboBoxItem Content="Quilt" Tag="quilt"/>
+                <ComboBoxItem Content="NeoForge" Tag="neoforge"/>
+            </ComboBox>
+
+            <Button Grid.Column="3" Content="Шукати" Style="{ThemeResource AccentButtonStyle}" Click="Search_Click"/>
+        </Grid>
+
+        <!-- Main Catalog Workspace: filters | list | details -->
+        <Grid Grid.Row="2" ColumnSpacing="20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="4*"/>
+                <ColumnDefinition Width="5*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: Filter sidebar -->
+            <ScrollViewer Grid.Column="0" Width="220" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="16">
+                    <Button Content="Скинути фільтри" HorizontalAlignment="Stretch" Click="ClearFilters_Click"/>
+
+                    <Expander Header="Category" IsExpanded="True" HorizontalAlignment="Stretch">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Categories}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:FilterOption">
+                                    <CheckBox Content="{x:Bind Label}" IsChecked="{x:Bind IsSelected, Mode=TwoWay}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Expander>
+
+                    <Expander Header="Game version" IsExpanded="True" HorizontalAlignment="Stretch">
+                        <StackPanel Spacing="8">
+                            <!-- Релізи, згруповані по папках (1.21.x, 1.20.x...) -->
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.ReleaseVersionGroups, Mode=OneWay}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewmodels:MarketplaceVersionGroup">
+                                        <Expander Header="{x:Bind GroupName}" HorizontalAlignment="Stretch" Margin="0,2">
+                                            <ItemsControl ItemsSource="{x:Bind Versions}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="viewmodels:FilterOption">
+                                                        <CheckBox Content="{x:Bind Label}" IsChecked="{x:Bind IsSelected, Mode=TwoWay}"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Expander>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <CheckBox Content="Показати тестові збірки (снапшоти)" IsChecked="{x:Bind ViewModel.ShowSnapshots, Mode=TwoWay}"/>
+
+                            <!-- Тестові збірки, показуються лише коли увімкнено перемикач вище; згруповані по роках + пререлізи окремо -->
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.SnapshotVersionGroups, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowSnapshots, Mode=OneWay, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewmodels:MarketplaceVersionGroup">
+                                        <Expander Header="{x:Bind GroupName}" HorizontalAlignment="Stretch" Margin="0,2">
+                                            <ItemsControl ItemsSource="{x:Bind Versions}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="viewmodels:FilterOption">
+                                                        <CheckBox Content="{x:Bind Label}" IsChecked="{x:Bind IsSelected, Mode=TwoWay}"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Expander>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Middle: List of Projects (list style, like Modrinth App) -->
+            <Grid Grid.Column="1">
+                <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Foreground="{ThemeResource SystemControlErrorTextForegroundBrush}" Visibility="{x:Bind ViewModel.StatusMessage, Mode=OneWay, Converter={StaticResource StringToVisibilityConverter}}"/>
+                <ListView ItemsSource="{x:Bind ViewModel.Projects, Mode=OneWay}"
+                          SelectedItem="{x:Bind ViewModel.SelectedProject, Mode=TwoWay}"
+                          SelectionChanged="ProjectsList_SelectionChanged"
+                          SelectionMode="Single">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="models:MarketplaceProjectHeader">
+                            <Grid Padding="8" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border CornerRadius="6" Width="48" Height="48" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
+                                    <Image Source="{x:Bind IconUrl}" Stretch="UniformToFill"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Title}" FontWeight="Bold" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                    <TextBlock Text="{x:Bind Description}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </Grid>
+
+            <!-- Right: Project details + version picker + download queue -->
+            <Grid Grid.Column="2">
+                <ProgressRing IsActive="{x:Bind ViewModel.IsDetailLoading, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,40,0,0"/>
+
+                <!-- Повідомлення про помилку/статус завжди видиме, навіть якщо деталі проєкту не завантажились -->
+                <TextBlock Text="{x:Bind ViewModel.DetailStatusMessage, Mode=OneWay}" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="20,80,20,0" Foreground="{ThemeResource SystemControlErrorTextForegroundBrush}" Visibility="{x:Bind ViewModel.DetailStatusMessage, Mode=OneWay, Converter={StaticResource StringToVisibilityConverter}}"/>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Visibility="{x:Bind ViewModel.ProjectDetail, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
+                    <StackPanel Spacing="16">
+                        <!-- Заголовок і посилання -->
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="{x:Bind ViewModel.ProjectDetail.Title, Mode=OneWay}" Style="{ThemeResource SubtitleTextBlockStyle}" FontWeight="Bold"/>
+                            <TextBlock Text="{x:Bind ViewModel.ProjectDetail.Description, Mode=OneWay}" TextWrapping="Wrap" Opacity="0.85"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.SelectedType, Mode=OneWay, Converter={StaticResource StringNotEqualsToVisibilityConverter}, ConverterParameter=modpack}">
+                            <ComboBox PlaceholderText="Оберіть інстанс" ItemsSource="{x:Bind ViewModel.Instances}" SelectedItem="{x:Bind ViewModel.SelectedTargetInstance, Mode=TwoWay}" DisplayMemberPath="Name" MinWidth="180"/>
+                        </StackPanel>
+
+                        <!-- Для збірок (Modpack) інстанс не обирається вручну — Modrinth-збірка
+                             сама визначає потрібну версію гри й лоадер зі свого маніфесту, і
+                             лаунчер або знаходить вже існуючий профіль з такою назвою (повторне
+                             встановлення/оновлення), або створює новий окремий профіль під неї. -->
+                        <TextBlock Text="Ця збірка автоматично встановиться у власний окремий профіль (буде створено або оновлено, якщо профіль з такою назвою вже є)."
+                                   FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                                   Visibility="{x:Bind ViewModel.SelectedType, Mode=OneWay, Converter={StaticResource StringEqualsToVisibilityConverter}, ConverterParameter=modpack}"/>
+
+                        <!-- Список версій -->
+                        <TextBlock Text="Версії" FontWeight="SemiBold"/>
+                        <AutoSuggestBox PlaceholderText="Пошук версії (номер, тип, гра, лоадер)..." Text="{x:Bind ViewModel.VersionSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" QueryIcon="Find"/>
+                        <ListView ItemsSource="{x:Bind ViewModel.ProjectVersions, Mode=OneWay}"
+                                  SelectedItem="{x:Bind ViewModel.SelectedVersion, Mode=TwoWay}"
+                                  SelectionMode="Single" MaxHeight="220">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="viewmodels:VersionListItem">
+                                    <TextBlock Text="{x:Bind DisplayText}" FontSize="12" Padding="4"/>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <Button Content="Встановити обрану версію" Style="{ThemeResource AccentButtonStyle}" HorizontalAlignment="Stretch" Click="InstallSelectedVersion_Click"/>
+
+                        <!-- Менеджер завантажень -->
+                        <Expander Header="Менеджер завантажень" IsExpanded="False" HorizontalAlignment="Stretch">
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.DownloadQueue, Mode=OneWay}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="models:DownloadTask">
+                                        <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}" Margin="0,6,0,0">
+                                            <StackPanel Spacing="6">
+                                                <Grid>
+                                                    <TextBlock Text="{x:Bind DestinationPath}" FontWeight="SemiBold" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{x:Bind Status}" Foreground="{ThemeResource SystemControlHighlightAccentBrush}" FontSize="10" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                                <ProgressBar Value="{x:Bind Progress, Mode=OneWay}" Height="4"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <TextBlock Text="Оберіть проєкт зі списку, щоб побачити деталі" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" Visibility="{x:Bind ViewModel.ProjectDetail, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}"/>
+            </Grid>
+        </Grid>
+    </Grid>
+</Page>
