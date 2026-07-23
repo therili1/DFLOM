@@ -63,7 +63,7 @@ namespace Launcher.ViewModels
 
         public ObservableCollection<string> AvailableVersions { get; } = new();
         public ObservableCollection<VersionGroup> AvailableVersionGroups { get; } = new();
-        public ObservableCollection<string> AvailableLoaders { get; } = new() { "Vanilla", "Fabric", "Forge", "Quilt" };
+        public ObservableCollection<string> AvailableLoaders { get; } = new() { "Vanilla", "Fabric", "Forge", "NeoForge", "Quilt" };
 
         private List<MinecraftVersion> _allVersions = new();
 

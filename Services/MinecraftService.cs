@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.Installer.Forge;
+using CmlLib.Core.Installer.NeoForge;
 using CmlLib.Core.ModLoaders.FabricMC;
 using CmlLib.Core.ModLoaders.QuiltMC;
 using CmlLib.Core.ProcessBuilder;
@@ -210,6 +211,32 @@ namespace Launcher.Services
                         var forgeInstaller = new ForgeInstaller(launcherInstance);
                         var loaderVersionName = await forgeInstaller.Install(instance.Version);
                         instance.LaunchVersionId = loaderVersionName;
+
+                        // Той самий баг, що й з Fabric/Quilt вище: попри те, що ForgeInstaller
+                        // отримує сам launcherInstance в конструктор, на практиці бібліотеки
+                        // складеного forge-профілю все одно не довантажувались повністю - гра
+                        // падала з ClassNotFoundException: ForgeBootstrap. Явно докачуємо.
+                        await launcherInstance.InstallAsync(instance.LaunchVersionId, cancellationToken: cancellationToken);
+                        break;
+                    }
+
+                case "neoforge":
+                    {
+                        // ⚠️ НЕПЕРЕВІРЕНО: не знайшов точного прикладу коду для
+                        // CmlLib.Core.Installer.NeoForge 4.0.0 (README на GitHub/NuGet без
+                        // прикладу використання). Клас/метод названо за аналогією з
+                        // ForgeInstaller.Install(mcVersion) - той самий автор/родина
+                        // бібліотек, той самий стиль API у решти інсталерів (Fabric/Quilt/
+                        // Forge вище). Якщо не скомпілюється - скинь точний текст помилки
+                        // з Error List, це вкаже реальну назву класу/методу за один крок.
+                        var neoForgeInstaller = new NeoForgeInstaller(launcherInstance);
+                        var loaderVersionName = await neoForgeInstaller.Install(instance.Version);
+                        instance.LaunchVersionId = loaderVersionName;
+
+                        // Той самий фікс, що й для Fabric/Quilt/Forge - явно докачуємо
+                        // бібліотеки складеного профілю, а не покладаємось на те, що
+                        // інсталер зробив це сам повністю.
+                        await launcherInstance.InstallAsync(instance.LaunchVersionId, cancellationToken: cancellationToken);
                         break;
                     }
                 default:
@@ -315,8 +342,25 @@ namespace Launcher.Services
 
             process.OutputDataReceived += (sender, e) =>
             {
-                if (!string.IsNullOrEmpty(e.Data))
-                    System.Diagnostics.Debug.WriteLine($"[Minecraft Out]: {e.Data}");
+                if (string.IsNullOrEmpty(e.Data)) return;
+
+                System.Diagnostics.Debug.WriteLine($"[Minecraft Out]: {e.Data}");
+
+                // КРИТИЧНО: раніше stdout ішов лише сюди, в Debug.WriteLine - тобто в нікуди,
+                // якщо не сидіти під Visual Studio з відкритим Debug Output. А краш-репорти
+                // Minecraft ("---- Minecraft Crash Report ----") і більшість виводу після
+                // завантаження Fabric/Quilt/Forge часто пишуться саме в stdout, не stderr.
+                // Через це наш власний Console Logs систематично губив саме ту інформацію,
+                // яка потрібна для діагностики крашів гри. Позначаємо явні краш-маркери
+                // як Warning, щоб вони виділялись, решту - як звичайний Info.
+                bool looksLikeCrash = e.Data.Contains("Crash Report", StringComparison.OrdinalIgnoreCase)
+                    || e.Data.Contains("Exception", StringComparison.OrdinalIgnoreCase)
+                    || e.Data.Contains("FATAL", StringComparison.OrdinalIgnoreCase);
+
+                if (looksLikeCrash)
+                    _log.Warning("Minecraft", e.Data);
+                else
+                    _log.Info("Minecraft", e.Data);
             };
             process.ErrorDataReceived += (sender, e) =>
             {
