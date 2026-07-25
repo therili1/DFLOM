@@ -1,0 +1,132 @@
+<ContentDialog
+    x:Class="Launcher.Views.InstanceSettingsDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="using:Launcher.Views"
+    mc:Ignorable="d"
+    Title="Налаштування профілю"
+    PrimaryButtonText="Закрити"
+    DefaultButton="Primary"
+    MinWidth="560">
+
+    <Grid RowSpacing="12" MaxHeight="480">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="InstanceHeaderText" Grid.Row="0" FontSize="12" Opacity="0.7"/>
+
+        <Pivot Grid.Row="1">
+            <PivotItem Header="Моди">
+                <Grid RowSpacing="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Тільки моди цього профілю — вмикай/вимикай або видаляй окремо" FontSize="11" Opacity="0.7" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="Додати мод" Click="AddMod_Click"/>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                        <ItemsControl x:Name="ModsList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="local:InstanceModRow">
+                                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,8" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                                        <Grid ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Name, Mode=OneWay}" FontWeight="SemiBold" FontSize="12"/>
+                                                <TextBlock Text="{x:Bind FileName, Mode=OneWay}" FontSize="10" Opacity="0.6"/>
+                                            </StackPanel>
+                                            <ToggleSwitch Grid.Column="1" IsOn="{x:Bind IsEnabled, Mode=TwoWay}" OnContent="" OffContent="" Toggled="ModToggle_Toggled" Tag="{x:Bind}"/>
+                                            <Button Grid.Column="2" Content="🗑" Click="DeleteMod_Click" Tag="{x:Bind}"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </PivotItem>
+
+            <PivotItem Header="Ресурспаки">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="360">
+                    <ItemsControl x:Name="ResourcePacksList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:InstanceModRow">
+                                <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,8" Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" VerticalAlignment="Center" FontSize="12"/>
+                                        <Button Grid.Column="1" Content="🗑" Click="DeleteResourcePack_Click" Tag="{x:Bind}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </PivotItem>
+
+            <PivotItem Header="Іконка">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Перетягни зображення сюди або обери файл. Після цього відкриється кроп у квадрат."
+                               FontSize="11" Opacity="0.7" TextWrapping="Wrap"/>
+
+                    <Border x:Name="IconDropZone"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8"
+                            Height="160" Width="160"
+                            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                            HorizontalAlignment="Left"
+                            AllowDrop="True" DragOver="IconDropZone_DragOver" Drop="IconDropZone_Drop">
+                        <Grid>
+                            <Image x:Name="IconPreview" Stretch="UniformToFill"/>
+                            <StackPanel x:Name="NoIconPlaceholder" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="4">
+                                <FontIcon Glyph="&#xE91B;" FontSize="28" Opacity="0.5" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Перетягни файл сюди" FontSize="11" Opacity="0.5" TextWrapping="Wrap" TextAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Обрати файл..." Click="ChangeIcon_Click"/>
+                        <Button Content="Скинути до емодзі за замовчуванням" Click="ResetIcon_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </PivotItem>
+
+            <PivotItem Header="Сумісність">
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ToggleSwitch x:Name="AmdWorkaroundToggle" OnContent="" OffContent="" Toggled="AmdWorkaroundToggle_Toggled"/>
+                        <TextBlock Text="Обхід краху AMD/Radeon-драйвера при запуску" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7">
+                        Увімкни, якщо гра падає одразу після запуску з помилкою
+                        <Run Text="EXCEPTION_ACCESS_VIOLATION" FontFamily="Consolas"/> і
+                        <Run Text="atio6axx.dll" FontFamily="Consolas"/> у звіті (типово для Forge/NeoForge
+                        на старіших AMD-драйверах). Вимикає раннє GL-вікно завантаження
+                        (<Run Text="earlyWindowControl" FontFamily="Consolas"/> у fml.toml) - деякі моди,
+                        що покладаються на нові GL-фічі під час завантаження, можуть виглядати інакше.
+                        Стосується лише профілів на Forge/NeoForge.
+                    </TextBlock>
+                </StackPanel>
+            </PivotItem>
+        </Pivot>
+    </Grid>
+</ContentDialog>

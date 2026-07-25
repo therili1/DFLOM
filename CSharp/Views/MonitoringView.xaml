@@ -1,0 +1,103 @@
+<Page
+    x:Class="Launcher.Views.MonitoringView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:Launcher.ViewModels"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="24" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Vertical">
+                <TextBlock Text="Діагностика &amp; Моніторинг Системи" Style="{ThemeResource TitleTextBlockStyle}" FontWeight="Bold"/>
+                <TextBlock Text="Контролюйте споживання ресурсів комп'ютера лаунчером та ігровим клієнтом у реальному часі" Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+            </StackPanel>
+            <Button Grid.Column="1" Content="Запустити Телеметрію" Click="Toggle_Click" Style="{ThemeResource AccentButtonStyle}"/>
+        </Grid>
+
+        <!-- Status bar -->
+        <Grid Grid.Row="1">
+            <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" FontWeight="SemiBold" Foreground="{ThemeResource SystemControlHighlightAccentBrush}"/>
+        </Grid>
+
+        <!-- Bento Grid of stats -->
+        <Grid Grid.Row="2" ColumnSpacing="16" RowSpacing="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Card 1: Launcher CPU -->
+            <Border Grid.Row="0" Grid.Column="0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="ЦП Лаунчера" FontSize="12" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                    <TextBlock Text="{x:Bind ViewModel.LauncherCpu, Mode=OneWay, Converter={StaticResource PercentDoubleConverter}}" FontSize="32" FontWeight="Bold" Foreground="SkyBlue"/>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ViewModel.LauncherCpu, Mode=OneWay}" Height="6" CornerRadius="3" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Card 2: Launcher RAM -->
+            <Border Grid.Row="0" Grid.Column="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="ОЗП Лаунчера" FontSize="12" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                    <TextBlock Text="{x:Bind ViewModel.LauncherRam, Mode=OneWay, Converter={StaticResource MbDoubleConverter}}" FontSize="32" FontWeight="Bold" Foreground="Plum"/>
+                    <ProgressBar Minimum="0" Maximum="1000" Value="{x:Bind ViewModel.LauncherRam, Mode=OneWay}" Height="6" CornerRadius="3" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Card 3: CPU Temp -->
+            <Border Grid.Row="0" Grid.Column="2" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="Температура Процесора" FontSize="12" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                    <TextBlock Text="{x:Bind ViewModel.CpuTemp, Mode=OneWay, Converter={StaticResource CelsiusDoubleConverter}}" FontSize="32" FontWeight="Bold" Foreground="OrangeRed"/>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ViewModel.CpuTemp, Mode=OneWay}" Height="6" CornerRadius="3" Foreground="OrangeRed" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Card 4: Minecraft CPU -->
+            <Border Grid.Row="1" Grid.Column="0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="ЦП Гри (Java Клієнт)" FontSize="12" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                    <TextBlock Text="{x:Bind ViewModel.MinecraftCpu, Mode=OneWay, Converter={StaticResource PercentDoubleConverter}}" FontSize="32" FontWeight="Bold" Foreground="LimeGreen"/>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ViewModel.MinecraftCpu, Mode=OneWay}" Height="6" CornerRadius="3" Foreground="LimeGreen" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Card 5: Minecraft RAM -->
+            <Border Grid.Row="1" Grid.Column="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="ОЗП Клієнта Minecraft" FontSize="12" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                    <TextBlock Text="{x:Bind ViewModel.MinecraftRam, Mode=OneWay, Converter={StaticResource MbDoubleConverter}}" FontSize="32" FontWeight="Bold" Foreground="Gold"/>
+                    <ProgressBar Minimum="0" Maximum="8192" Value="{x:Bind ViewModel.MinecraftRam, Mode=OneWay}" Height="6" CornerRadius="3" Foreground="Gold" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Card 6: Minecraft GPU -->
+            <Border Grid.Row="1" Grid.Column="2" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10" VerticalAlignment="Center">
+                    <TextBlock Text="ГП Навантаження клієнту (VRAM/OpenGL)" FontSize="12" Foreground="{ThemeResource SystemControlPageTextBaseMediumBrush}"/>
+                    <TextBlock Text="{x:Bind ViewModel.MinecraftGpu, Mode=OneWay, Converter={StaticResource PercentDoubleConverter}}" FontSize="32" FontWeight="Bold" Foreground="MediumOrchid"/>
+                    <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ViewModel.MinecraftGpu, Mode=OneWay}" Height="6" CornerRadius="3" Foreground="MediumOrchid" Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Page>
