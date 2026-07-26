@@ -47,9 +47,20 @@ namespace Launcher.Views
             ModsList.ItemsSource = _mods;
             ResourcePacksList.ItemsSource = _resourcePacks;
 
+            // Безпечно ставити тут, бо _instance/_instanceStore вже присвоєні рядками вище -
+            // навіть якщо ця зміна IsOn синхронно тригерне AmdWorkaroundToggle_Toggled
+            // (як це буває з деякими контролами всередині InitializeComponent), поля вже готові.
+            AmdWorkaroundToggle.IsOn = _instance.DisableForgeEarlyWindow;
+
             RefreshMods();
             RefreshResourcePacks();
             RefreshIconPreview();
+        }
+
+        private async void AmdWorkaroundToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            _instance.DisableForgeEarlyWindow = AmdWorkaroundToggle.IsOn;
+            await _instanceStore.SaveAsync();
         }
 
         private void RefreshMods()

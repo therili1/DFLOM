@@ -41,5 +41,20 @@ namespace Launcher.Models
         public string CustomBackground { get; set; } = string.Empty;
         public string Notes { get; set; } = string.Empty;
         public DateTime? LastLaunched { get; set; }
+
+        // Обхід відомого краху деяких AMD/Radeon-драйверів (atio6axx.dll,
+        // EXCEPTION_ACCESS_VIOLATION) у ранньому вікні завантаження Forge/NeoForge
+        // (ImmediateWindowProvider/EARLYDISPLAY). Коли увімкнено, лаунчер перед запуском
+        // прописує earlyWindowControl=false у config/fml.toml профілю - офіційний,
+        // задокументований у FMLConfig.java ключ. Стосується лише Forge/NeoForge
+        // (у Fabric/Quilt немає fml.toml і цього механізму взагалі).
+        public bool DisableForgeEarlyWindow { get; set; } = false;
+
+        // Заповнюється при кожному запуску реальним шляхом до java(w).exe, який
+        // фактично використала гра (process.StartInfo.FileName). Оскільки тепер усі
+        // профілі шарять спільну теку Java-рантаймів (див. MinecraftService._sharedRuntimesDir),
+        // цей шлях стабільний між запусками одного профілю - зручно додати в винятки
+        // NVIDIA Control Panel / AMD Radeon Software для примусового вибору GPU.
+        public string? LastResolvedJavaPath { get; set; }
     }
 }

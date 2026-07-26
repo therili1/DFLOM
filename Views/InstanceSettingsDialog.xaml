@@ -109,6 +109,24 @@
                     </StackPanel>
                 </StackPanel>
             </PivotItem>
+
+            <PivotItem Header="Сумісність">
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ToggleSwitch x:Name="AmdWorkaroundToggle" OnContent="" OffContent="" Toggled="AmdWorkaroundToggle_Toggled"/>
+                        <TextBlock Text="Обхід краху AMD/Radeon-драйвера при запуску" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Opacity="0.7">
+                        Увімкни, якщо гра падає одразу після запуску з помилкою
+                        <Run Text="EXCEPTION_ACCESS_VIOLATION" FontFamily="Consolas"/> і
+                        <Run Text="atio6axx.dll" FontFamily="Consolas"/> у звіті (типово для Forge/NeoForge
+                        на старіших AMD-драйверах). Вимикає раннє GL-вікно завантаження
+                        (<Run Text="earlyWindowControl" FontFamily="Consolas"/> у fml.toml) - деякі моди,
+                        що покладаються на нові GL-фічі під час завантаження, можуть виглядати інакше.
+                        Стосується лише профілів на Forge/NeoForge.
+                    </TextBlock>
+                </StackPanel>
+            </PivotItem>
         </Pivot>
     </Grid>
 </ContentDialog>

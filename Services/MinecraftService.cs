@@ -35,6 +35,29 @@ namespace Launcher.Services
 
             _path = new MinecraftPath(gameDirectory);
             _launcher = new MinecraftLauncher(_path);
+
+            // Спільна для ВСІХ профілів тека Java-рантаймів (окремо від решти файлів
+            // профілю - версій, бібліотек, модів, які лишаються per-instance).
+            _sharedRuntimesDir = Path.Combine(gameDirectory, "shared-runtimes");
+        }
+
+        private readonly string _sharedRuntimesDir;
+
+        /// <summary>Будує MinecraftPath для профілю, але з ПІДМІНЕНОЮ на спільну теку Runtime -
+        /// щоб Java 8/17/21 качались один раз на весь лаунчер, а не дублювались у кожному
+        /// профілі окремо. CmlLib сам визначає потрібну версію Java і назву теки рантайму
+        /// (наприклад "java-runtime-delta") всередині цього спільного кореня, тож два профілі
+        /// з однаковою вимогою Java автоматично переюзають той самий завантажений рантайм.
+        /// Versions/Library/Assets/Mods лишаються per-instance (instance.GameDirectory) -
+        /// спільна робить сенс лише для самої Java, не для файлів гри чи модів.</summary>
+        private MinecraftPath CreateInstancePath(MinecraftInstance instance)
+        {
+            var path = string.IsNullOrEmpty(instance.GameDirectory)
+                ? _path
+                : new MinecraftPath(instance.GameDirectory);
+
+            path.Runtime = _sharedRuntimesDir;
+            return path;
         }
 
         // 1. Отримуємо версії
@@ -141,9 +164,7 @@ namespace Launcher.Services
         {
             _log.Info("MinecraftService", $"Встановлення {instance.Name} ({instance.Version}, {instance.Loader})...");
 
-            var instancePath = string.IsNullOrEmpty(instance.GameDirectory)
-                ? _path
-                : new MinecraftPath(instance.GameDirectory);
+            var instancePath = CreateInstancePath(instance);
 
             var launcherInstance = new MinecraftLauncher(instancePath);
 
@@ -251,9 +272,21 @@ namespace Launcher.Services
         // 3. Запуск гри
         public async Task LaunchInstanceAsync(MinecraftInstance instance, CancellationToken cancellationToken = default)
         {
-            var instancePath = string.IsNullOrEmpty(instance.GameDirectory)
-                ? _path
-                : new MinecraftPath(instance.GameDirectory);
+            var instancePath = CreateInstancePath(instance);
+
+            // Обхід краху AMD/Radeon-драйверів (atio6axx.dll, EXCEPTION_ACCESS_VIOLATION)
+            // у ранньому GL-вікні Forge/NeoForge - див. коментар при DisableForgeEarlyWindow
+            // в моделі MinecraftInstance. Патчимо ПЕРЕД стартом процесу, а не під час
+            // InstallInstanceAsync, бо fml.toml створює/"виправляє" сама гра при своєму
+            // старті (видно в логах: "Configuration file ... fml.toml is not correct.
+            // Correcting") - тому наше значення має вже лежати у файлі ДО того, як FML
+            // його прочитає, інакше FML перезапише його дефолтом.
+            if (instance.DisableForgeEarlyWindow &&
+                (string.Equals(instance.Loader, "Forge", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(instance.Loader, "NeoForge", StringComparison.OrdinalIgnoreCase)))
+            {
+                EnsureForgeEarlyWindowDisabled(instance.GameDirectory);
+            }
 
             var launcherInstance = new MinecraftLauncher(instancePath);
 
@@ -325,6 +358,12 @@ namespace Launcher.Services
                 var resolvedVersion = await localMetadatas.GetAndSaveVersionAsync(versionToLaunch, instancePath);
 
                 process = launcherInstance.BuildProcess(resolvedVersion, launchOption);
+
+                // Реальний шлях до java(w).exe, який CmlLib підставив у сам процес -
+                // найнадійніше джерело правди (не здогад, а те, що фактично запускається).
+                // Стабільний між запусками одного профілю завдяки спільній теці рантаймів.
+                instance.LastResolvedJavaPath = process.StartInfo.FileName;
+                _log.Info("MinecraftService", $"Java: {instance.LastResolvedJavaPath}");
             }
             catch (Exception ex)
             {
@@ -390,6 +429,54 @@ namespace Launcher.Services
 
             _monitoringService.AttachToProcess(process.Id);
             _monitoringService.StartMonitoring();
+        }
+
+        /// <summary>Прописує earlyWindowControl=false у config/fml.toml профілю - офіційний
+        /// ключ FML (FMLConfig.java), обхід краху деяких AMD/Radeon-драйверів у ранньому
+        /// GL-вікні завантаження Forge/NeoForge. Якщо файл вже є - міняє тільки цей рядок,
+        /// не чіпаючи решту налаштувань. Якщо файлу нема - створює мінімальний, FML сам
+        /// доповнить решту дефолтними значеннями при старті (підтверджено власними логами:
+        /// "Incorrect key [X] was corrected from null to Y" для кожного відсутнього ключа).</summary>
+        private void EnsureForgeEarlyWindowDisabled(string gameDirectory)
+        {
+            try
+            {
+                var configDir = Path.Combine(gameDirectory, "config");
+                var fmlTomlPath = Path.Combine(configDir, "fml.toml");
+                const string desiredLine = "earlyWindowControl = false";
+
+                if (File.Exists(fmlTomlPath))
+                {
+                    var lines = File.ReadAllLines(fmlTomlPath).ToList();
+                    var keyPattern = new System.Text.RegularExpressions.Regex(@"^\s*earlyWindowControl\s*=");
+                    int idx = lines.FindIndex(l => keyPattern.IsMatch(l));
+
+                    if (idx >= 0)
+                    {
+                        if (lines[idx].Trim() == desiredLine) return; // вже виставлено, нічого робити не треба
+                        lines[idx] = desiredLine;
+                    }
+                    else
+                    {
+                        lines.Add(desiredLine);
+                    }
+
+                    File.WriteAllLines(fmlTomlPath, lines);
+                }
+                else
+                {
+                    Directory.CreateDirectory(configDir);
+                    File.WriteAllText(fmlTomlPath, desiredLine + Environment.NewLine);
+                }
+
+                _log.Info("MinecraftService", "Обхід AMD/Radeon early-window увімкнено (earlyWindowControl=false у fml.toml).");
+            }
+            catch (Exception ex)
+            {
+                // Не критично для запуску - якщо патч не вдався, гра просто спробує запуститись
+                // зі стандартними налаштуваннями FML, як і раніше.
+                _log.Warning("MinecraftService", $"Не вдалося пропатчити fml.toml для обходу AMD-краху: {ex.Message}");
+            }
         }
     }
 }
