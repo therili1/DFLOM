@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
@@ -414,6 +415,31 @@ namespace Launcher.Services
                 _log.Error("MinecraftService", $"BuildProcessAsync провалився для версії '{versionToLaunch}': {ex.Message}");
                 throw new InvalidOperationException($"Не вдалося зібрати команду запуску для версії '{versionToLaunch}'. Перевірте, чи існує {Path.Combine(instance.GameDirectory, "versions", versionToLaunch)}. Деталі: {ex.Message}", ex);
             }
+
+            // ── (C) Виправлення шляху log4j конфігурації ───────────────────────────────
+            // Prism: JavaUtils.cpp — передає шлях як QUrl::fromLocalFile(path).toString(),
+            // що дає "file:///C:/path/to/client-1.21.2.xml".
+            // CmlLib вставляє значення з version JSON як є — голий Windows-шлях
+            // (C:\...\log_configs\client-1.21.2.xml). Log4j2 вимагає URI або classpath:
+            // рядок; голий шлях дає "Error parsing URI" (але не крашить гру, бо log4j
+            // fallback'ає на дефолтну конфігурацію). Замінюємо сирий шлях на file:///-URI
+            // так само, як це робить Prism.
+            //
+            // Аргумент у рядку Arguments може бути в лапках або без, залежно від пробілів
+            // у шляху, тому патерн охоплює обидва випадки.
+            process.StartInfo.Arguments = Regex.Replace(
+                process.StartInfo.Arguments,
+                @"-Dlog4j2?\.configurationFile=(""?)([^""\s]+)(""?)",
+                m =>
+                {
+                    var rawPath = m.Groups[2].Value;
+                    // new Uri(windowsPath).AbsoluteUri → "file:///C:/path/to/file.xml"
+                    if (Uri.TryCreate(rawPath, UriKind.Absolute, out var uri) && uri.IsFile)
+                        return $"-Dlog4j2.configurationFile={uri.AbsoluteUri}";
+                    if (File.Exists(rawPath))
+                        return $"-Dlog4j2.configurationFile={new Uri(rawPath).AbsoluteUri}";
+                    return m.Value; // не чіпаємо, якщо не можемо розпарсити
+                });
 
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput = true;
