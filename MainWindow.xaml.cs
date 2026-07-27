@@ -43,14 +43,16 @@ namespace Launcher
             // Release builds any exception thrown by that chain propagates out of the
             // async void OnLaunched() method with no handler and silently kills the process.
             //
-            // Instead we do the initial navigation in the Loaded event, which fires after
-            // the window is shown and Activate() has been called.
-            this.Loaded += MainWindow_Loaded;
+            // WinUI 3 Window does not inherit FrameworkElement and has no Loaded event.
+            // Instead we subscribe to MainNavView.Loaded, which fires once the visual tree
+            // is fully rendered and the window has been activated by Activate().
+            MainNavView.Loaded += MainNavView_Loaded;
         }
 
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        private void MainNavView_Loaded(object sender, RoutedEventArgs e)
         {
-            // Loaded fires once, after the window is visible. Do the first navigation here.
+            // Unsubscribe immediately — we only need the first-render navigation.
+            MainNavView.Loaded -= MainNavView_Loaded;
             SelectFirstAvailableItem();
         }
 
