@@ -36,6 +36,21 @@ namespace Launcher
             RebuildMenu();
             _navService.NavigationChanged += OnNavigationChanged;
 
+            // IMPORTANT: Frame.Navigate() must NOT be called here in the constructor.
+            // Calling Navigate() before Activate() triggers the construction of the first
+            // Page and all of its ViewModels (HomeView → HomeViewModel → MinecraftService →
+            // MinecraftLauncher, etc.) while the window has not yet been activated. In
+            // Release builds any exception thrown by that chain propagates out of the
+            // async void OnLaunched() method with no handler and silently kills the process.
+            //
+            // Instead we do the initial navigation in the Loaded event, which fires after
+            // the window is shown and Activate() has been called.
+            this.Loaded += MainWindow_Loaded;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Loaded fires once, after the window is visible. Do the first navigation here.
             SelectFirstAvailableItem();
         }
 

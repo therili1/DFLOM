@@ -177,6 +177,10 @@ namespace Launcher.ViewModels
         {
             _marketplaceService = App.GetService<IMarketplaceService>();
             _downloadManager = App.GetService<IDownloadManager>();
+            // GetForCurrentThread() returns null when called from a non-UI thread.
+            // This ViewModel is a Singleton resolved lazily from MarketplaceView's
+            // constructor, which runs on the UI thread during Frame.Navigate().
+            // Capture the queue here; null-guard every TryEnqueue() call below.
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
             _instanceStore = App.GetService<IInstanceStore>();
             _modpackInstaller = App.GetService<IModpackInstaller>();
@@ -280,7 +284,7 @@ namespace Launcher.ViewModels
 
         private void OnDownloadQueueChanged(object? sender, DownloadQueueChangedEventArgs e)
         {
-            _dispatcherQueue.TryEnqueue(() =>
+            _dispatcherQueue?.TryEnqueue(() =>
             {
                 var existing = DownloadQueue.FirstOrDefault(t => t.Id == e.Task.Id);
                 if (existing == null)

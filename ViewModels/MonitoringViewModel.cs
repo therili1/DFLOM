@@ -44,10 +44,10 @@ namespace Launcher.ViewModels
         public MonitoringViewModel()
         {
             _monitoringService = App.GetService<IMonitoringService>();
-            // DispatcherQueue НЕ зареєстрований у DI-контейнері — GetRequiredService<>() на нього
-            // раніше кидав виняток на кожному тику фонового таймера моніторингу, через що
-            // жодне оновлення так і не долітало до UI (звідси й "завжди 0%"/"0 MB").
-            // Правильно — захопити чергу поточного (UI) потоку прямо тут, у конструкторі.
+            // GetForCurrentThread() returns null when called from a non-UI thread.
+            // This ViewModel is a Singleton resolved lazily from MonitoringView's
+            // constructor, which runs on the UI thread during Frame.Navigate().
+            // Capture the queue here; null-guard every TryEnqueue() call below.
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
 
             _monitoringService.UsageUpdated += OnUsageUpdated;
@@ -78,7 +78,7 @@ namespace Launcher.ViewModels
 
         private void OnUsageUpdated(SystemUsageSnapshot snapshot)
         {
-            _dispatcherQueue.TryEnqueue(() =>
+            _dispatcherQueue?.TryEnqueue(() =>
             {
                 LauncherCpu = snapshot.LauncherCpu;
                 LauncherRam = snapshot.LauncherRam;

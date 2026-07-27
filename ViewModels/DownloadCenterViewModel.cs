@@ -24,11 +24,12 @@ namespace Launcher.ViewModels
         public DownloadCenterViewModel()
         {
             _downloadManager = App.GetService<IDownloadManager>();
-            // ObservableCollection можна змінювати лише з UI-потоку, а QueueChanged
-            // прилітає з фонового Task'а в DownloadManager.RunDownloadAsync - без цього
-            // застосунок падав би з COMException при кожному тику прогресу завантаження.
+            // GetForCurrentThread() returns null when called from a non-UI thread.
+            // This ViewModel is a Singleton resolved lazily from DownloadCenterPage's
+            // constructor, which runs on the UI thread during Frame.Navigate().
+            // Capture the queue here; null-guard every TryEnqueue() call below.
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-            _downloadManager.QueueChanged += (_, _) => _dispatcherQueue.TryEnqueue(Rebuild);
+            _downloadManager.QueueChanged += (_, _) => _dispatcherQueue?.TryEnqueue(Rebuild);
             Rebuild();
         }
 

@@ -1,0 +1,233 @@
+ROLE
+
+You are a senior C# / .NET 8 / WinUI 3 engineer.
+
+You are NOT allowed to guess.
+
+You must inspect the entire repository before changing anything.
+
+You are expected to actually fix the project.
+
+PROJECT
+
+This is a WinUI 3 Minecraft Launcher.
+
+Current state:
+
+Debug works perfectly.
+Minecraft launching works.
+Forge works.
+NeoForge works.
+Quilt works.
+Assets work.
+Download system works.
+The launcher itself works in Debug.
+
+Problem:
+
+Published Release EXE immediately exits without showing MainWindow.
+
+No exception.
+
+No window.
+
+No crash dialog.
+
+No console.
+
+No stack trace.
+
+The EXE simply exits.
+
+IMPORTANT
+
+Do NOT waste time on:
+
+WindowsPackageType=None
+PublishProfile
+RuntimeIdentifier
+SelfContained
+MSIX
+Packaging
+
+Those have already been investigated.
+
+The problem is inside the application's startup code.
+
+TASK
+
+Read the ENTIRE project.
+
+Do not stop after the first assumption.
+
+Inspect:
+
+App.xaml
+App.xaml.cs
+MainWindow.xaml
+MainWindow.xaml.cs
+every Service
+every ViewModel
+all constructors
+all InitializeComponent()
+all async initialization
+Host.CreateDefaultBuilder
+Host.StartAsync
+Navigation
+Theme loading
+Animation loading
+Navigation settings
+MinecraftService
+MonitoringService
+MarketplaceService
+InstanceStore
+LogService
+AuthenticationService
+What you must verify
+
+For EVERY constructor:
+
+Check if it:
+
+performs file IO
+performs network IO
+calls DispatcherQueue
+calls Dispatcher
+calls Result
+calls Wait()
+calls GetAwaiter().GetResult()
+creates HttpClient requests
+creates Minecraft instances
+performs heavy work
+can throw exceptions
+
+If yes:
+
+MOVE THAT CODE.
+
+Constructors must ONLY assign fields.
+
+Everything else must be inside
+
+InitializeAsync()
+
+or
+
+Loaded
+
+events.
+
+Startup flow
+
+The launcher must behave like this:
+
+Program
+
+↓
+
+App()
+
+↓
+
+Host.StartAsync()
+
+↓
+
+Create MainWindow
+
+↓
+
+InitializeComponent
+
+↓
+
+Activate()
+
+↓
+
+Window is visible
+
+↓
+
+InitializeAsync()
+
+↓
+
+Load services
+
+↓
+
+Load ViewModels
+
+↓
+
+Load marketplace
+
+↓
+
+Load monitoring
+
+↓
+
+Load Minecraft
+
+NOT before the window exists.
+
+Diagnostics
+
+Do not add useless logging everywhere.
+
+Instead:
+
+Wrap every startup stage with try/catch.
+
+If anything throws:
+
+Print
+
+full stack trace
+inner exception
+file
+line
+
+Never swallow exceptions.
+
+Also inspect
+
+Any use of
+
+DispatcherQueue.GetForCurrentThread()
+
+inside constructors.
+
+That is highly suspicious.
+
+If found:
+
+Move it outside the constructor.
+
+Goal
+
+Find the REAL reason.
+
+Not a guess.
+
+Not another publish setting.
+
+Not packaging.
+
+Find the exact file.
+
+Find the exact line.
+
+Fix it.
+
+Refactor startup if needed.
+
+The final result must be:
+
+Debug works
+Release works
+Published EXE opens MainWindow normally
+
+Do not stop until the published Release executable actually works.
