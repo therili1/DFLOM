@@ -34,3 +34,4 @@ This project targets Windows only. It requires WinUI3 and the Windows App SDK, w
 ## User preferences
 - Language of code comments and UI strings: Ukrainian
 - Bug fixes only — do not restructure or migrate the project
+- Only make changes explicitly requested by the user — no proactive edits, refactors, or additions
