@@ -17,40 +17,104 @@ namespace Launcher
         public static IHost? AppHost { get; private set; }
         private Window? _mainWindow;
 
+        // ── Trace helpers ────────────────────────────────────────────────────────
+        // Every write is immediately flushed so the log always reflects the last
+        // line actually executed before a hang or crash.
+        private static readonly string _traceLogPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            ".lrs_launcher", "startup_trace.log");
+
+        private static void Trace(string message)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_traceLogPath)!);
+                using var fs = new FileStream(_traceLogPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                using var sw = new StreamWriter(fs) { AutoFlush = true };
+                sw.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] {message}");
+            }
+            catch { /* never suppress the caller for a log failure */ }
+        }
+
+        private static void TraceEx(string stage, Exception ex)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_traceLogPath)!);
+                using var fs = new FileStream(_traceLogPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+                using var sw = new StreamWriter(fs) { AutoFlush = true };
+                sw.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] EXCEPTION in {stage}");
+                sw.WriteLine($"  Type   : {ex.GetType().FullName}");
+                sw.WriteLine($"  Message: {ex.Message}");
+                sw.WriteLine($"  Inner  : {ex.InnerException?.GetType().FullName}: {ex.InnerException?.Message ?? "none"}");
+                sw.WriteLine($"  Stack  :");
+                sw.WriteLine(ex.StackTrace);
+                sw.WriteLine();
+            }
+            catch { }
+        }
+        // ────────────────────────────────────────────────────────────────────────
+
         public App()
         {
+            // Wipe the previous trace so the file only contains the current run.
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_traceLogPath)!);
+                File.WriteAllText(_traceLogPath, $"=== Launcher startup trace {DateTime.Now:yyyy-MM-dd HH:mm:ss} ==={Environment.NewLine}");
+            }
+            catch { }
+
+            Trace("App() constructor: start");
+
             this.InitializeComponent();
+            Trace("App() constructor: InitializeComponent done");
 
             try
             {
+                Trace("App() constructor: before Host.CreateDefaultBuilder");
+
                 AppHost = Host.CreateDefaultBuilder()
                     .ConfigureServices((context, services) =>
                     {
-                        // Реєстрація наших нових РЕАЛЬНИХ сервісів
+                        Trace("ConfigureServices: start");
+
                         services.AddSingleton<IAuthenticationService, Services.AuthenticationService>();
+                        Trace("ConfigureServices: IAuthenticationService registered");
+
                         services.AddSingleton<IMinecraftService, Services.MinecraftService>();
+                        Trace("ConfigureServices: IMinecraftService registered");
+
                         services.AddSingleton<IMonitoringService, Services.MonitoringService>();
+                        Trace("ConfigureServices: IMonitoringService registered");
+
                         services.AddSingleton<IInstanceStore, Services.InstanceStore>();
+                        Trace("ConfigureServices: IInstanceStore registered");
+
                         services.AddSingleton<ILogService, Services.LogService>();
+                        Trace("ConfigureServices: ILogService registered");
+
                         services.AddSingleton<IAnimationSettingsService, Services.AnimationSettingsService>();
+                        Trace("ConfigureServices: IAnimationSettingsService registered");
+
                         services.AddSingleton<IThemeService, Services.ThemeService>();
+                        Trace("ConfigureServices: IThemeService registered");
+
                         services.AddSingleton<INavigationSettingsService, Services.NavigationSettingsService>();
+                        Trace("ConfigureServices: INavigationSettingsService registered");
 
                         services.AddSingleton<IMarketplaceService, Services.MarketplaceService>();
+                        Trace("ConfigureServices: IMarketplaceService registered");
+
                         services.AddSingleton<IDownloadManager, Services.DownloadManager>();
+                        Trace("ConfigureServices: IDownloadManager registered");
+
                         services.AddSingleton<IModpackInstaller, Services.ModpackInstaller>();
+                        Trace("ConfigureServices: IModpackInstaller registered");
 
-                        // Реєстрація MainWindow (потрібна для запуску інтерфейсу)
                         services.AddSingleton<MainWindow>();
+                        Trace("ConfigureServices: MainWindow registered");
 
-                        // MVVM ViewModels registration
-                        // ВАЖЛИВО: Singleton, а не Transient. ContentFrame.Navigate() у MainWindow
-                        // створює нову сторінку (Page) при кожному перемиканні вкладки, а кожна
-                        // сторінка сама запитує свою ViewModel через App.GetService<T>() у конструкторі.
-                        // З Transient це означало нову "порожню" ViewModel щоразу -> увесь стан
-                        // (вибраний профіль, незбережені поля форми, прогрес завантаження) губився
-                        // при кожному переключенні вкладок. Singleton гарантує, що це той самий
-                        // об'єкт ViewModel, тож стан живе, поки не закриють застосунок.
                         services.AddSingleton<MainViewModel>();
                         services.AddSingleton<HomeViewModel>();
                         services.AddSingleton<InstancesViewModel>();
@@ -61,6 +125,7 @@ namespace Launcher
                         services.AddSingleton<ThemeEditorViewModel>();
                         services.AddSingleton<UpdateCenterViewModel>();
                         services.AddSingleton<DownloadCenterViewModel>();
+                        Trace("ConfigureServices: all ViewModels registered");
                     })
                     .ConfigureLogging((context, logging) =>
                     {
@@ -69,117 +134,129 @@ namespace Launcher
                         logging.SetMinimumLevel(LogLevel.Debug);
                     })
                     .Build();
+
+                Trace("App() constructor: Host.Build() completed");
             }
             catch (Exception ex)
             {
+                TraceEx("App() constructor / Host.Build", ex);
                 WriteStartupLog("App() constructor / Host.Build", ex);
-                throw; // Let WinUI propagate — at least the log file will exist.
+                throw;
             }
+
+            Trace("App() constructor: end");
         }
 
         protected override async void OnLaunched(LaunchActivatedEventArgs args)
         {
-            // IMPORTANT: This method is async void. In Release any unhandled exception
-            // silently terminates the process — no dialog, no crash report, nothing.
-            // Every stage must be wrapped so an exception in one stage cannot kill the
-            // whole process before the window even appears.
+            Trace("OnLaunched: start");
+
             try
             {
-                // ── Stage 1: start the DI host ───────────────────────────────────────
+                // ── Stage 1: start the DI host ───────────────────────────────
                 if (AppHost != null)
                 {
+                    Trace("OnLaunched: before AppHost.StartAsync");
                     try
                     {
                         await AppHost.StartAsync();
+                        Trace("OnLaunched: after AppHost.StartAsync");
                     }
                     catch (Exception ex)
                     {
+                        TraceEx("AppHost.StartAsync", ex);
                         WriteStartupLog("AppHost.StartAsync", ex);
                         throw;
                     }
                 }
+                else
+                {
+                    Trace("OnLaunched: AppHost is null — skipping StartAsync");
+                }
 
-                // ── Stage 2: pre-load settings that affect first paint ────────────────
-                // Animation, Theme, and Navigation settings are loaded BEFORE the window
-                // is created so that:
-                //  - NavigationSettingsService.Items is populated before MainWindow
-                //    calls RebuildMenu() in its constructor (empty Items → empty menu).
-                //  - ThemeService resources are applied before any Page renders,
-                //    preventing a visible flash of default colours at startup.
-                // These three LoadAsync calls are very fast (local JSON files) and safe
-                // to run before Activate(). Each has its own catch so one failure does
-                // not block the window from appearing.
+                // ── Stage 2: load settings that affect first paint ────────────
                 if (AppHost != null)
                 {
+                    Trace("OnLaunched: before AnimationSettingsService.LoadAsync");
                     try
                     {
                         var animService = AppHost.Services.GetRequiredService<IAnimationSettingsService>();
+                        Trace("OnLaunched: IAnimationSettingsService resolved");
                         await animService.LoadAsync();
+                        Trace("OnLaunched: after AnimationSettingsService.LoadAsync");
                     }
                     catch (Exception ex)
                     {
+                        TraceEx("AnimationSettingsService.LoadAsync", ex);
                         WriteStartupLog("AnimationSettingsService.LoadAsync", ex);
-                        // Non-fatal: launcher uses defaults.
+                        // Non-fatal: continue with defaults.
                     }
 
+                    Trace("OnLaunched: before ThemeService.LoadAsync");
                     try
                     {
                         var themeService = AppHost.Services.GetRequiredService<IThemeService>();
+                        Trace("OnLaunched: IThemeService resolved");
                         await themeService.LoadAsync();
+                        Trace("OnLaunched: after ThemeService.LoadAsync");
                     }
                     catch (Exception ex)
                     {
+                        TraceEx("ThemeService.LoadAsync", ex);
                         WriteStartupLog("ThemeService.LoadAsync", ex);
-                        // Non-fatal: launcher uses default theme.
+                        // Non-fatal: continue with default theme.
                     }
 
+                    Trace("OnLaunched: before NavigationSettingsService.LoadAsync");
                     try
                     {
                         var navService = AppHost.Services.GetRequiredService<INavigationSettingsService>();
+                        Trace("OnLaunched: INavigationSettingsService resolved");
                         await navService.LoadAsync();
+                        Trace("OnLaunched: after NavigationSettingsService.LoadAsync");
                     }
                     catch (Exception ex)
                     {
+                        TraceEx("NavigationSettingsService.LoadAsync", ex);
                         WriteStartupLog("NavigationSettingsService.LoadAsync", ex);
-                        // Non-fatal: launcher uses default navigation layout.
+                        // Non-fatal: continue with default navigation.
                     }
                 }
 
-                // ── Stage 3: create and show the window ──────────────────────────────
+                // ── Stage 3: create and show the window ──────────────────────
+                Trace("OnLaunched: before MainWindow()");
                 try
                 {
                     _mainWindow = AppHost?.Services.GetRequiredService<MainWindow>() ?? new MainWindow();
+                    Trace("OnLaunched: after MainWindow() — window object created");
                 }
                 catch (Exception ex)
                 {
+                    TraceEx("Create MainWindow", ex);
                     WriteStartupLog("Create MainWindow", ex);
-                    throw; // Fatal: cannot proceed without a window.
+                    throw; // Fatal.
                 }
 
+                Trace("OnLaunched: before Activate()");
                 try
                 {
                     _mainWindow.Activate();
+                    Trace("OnLaunched: after Activate()");
                 }
                 catch (Exception ex)
                 {
+                    TraceEx("MainWindow.Activate", ex);
                     WriteStartupLog("MainWindow.Activate", ex);
-                    throw; // Fatal: window must be visible.
+                    throw; // Fatal.
                 }
 
-                // Window is now visible. Heavy service initialisation (Minecraft path
-                // setup, instance loading, etc.) happens lazily when the user navigates
-                // to each page, not here. Nothing else needs to run at startup.
+                Trace("OnLaunched: completed successfully");
             }
             catch (Exception ex)
             {
-                // Last-resort catch: we reach here only if a *fatal* stage threw.
-                // The log file at %AppData%\.lrs_launcher\startup_crash.log will contain
-                // the full exception chain so the developer can diagnose the issue.
+                TraceEx("OnLaunched (fatal)", ex);
                 WriteStartupLog("OnLaunched (fatal — window did not open)", ex);
-
-                // Nothing else we can do: the window never appeared. The log is the
-                // only artifact. Do NOT rethrow — rethrowing from async void calls
-                // Environment.FailFast which produces a different (harder to find) error.
+                // Do NOT rethrow — rethrowing from async void calls Environment.FailFast.
             }
         }
 
@@ -189,11 +266,6 @@ namespace Launcher
             return AppHost.Services.GetRequiredService<T>();
         }
 
-        /// <summary>
-        /// Appends a structured entry to %AppData%\.lrs_launcher\startup_crash.log.
-        /// Called whenever a startup stage throws so the developer can see the exact
-        /// file/line/inner exception without attaching a debugger.
-        /// </summary>
         private static void WriteStartupLog(string stage, Exception ex)
         {
             try
@@ -214,10 +286,7 @@ namespace Launcher
 
                 File.AppendAllText(logPath, entry);
             }
-            catch
-            {
-                // If we cannot write the log there is nothing else we can do.
-            }
+            catch { }
         }
     }
 }
