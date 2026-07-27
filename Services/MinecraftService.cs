@@ -285,6 +285,15 @@ namespace Launcher.Services
                             : await quiltInstaller.Install(instance.Version, instance.LoaderVersion, instancePath);
 
                         instance.LaunchVersionId = ResolveInstalledLoaderVersionId(instancePath, "quilt-loader", loaderVersionName, instance.Version);
+
+                        // QuiltInstaller.Install() створює version JSON, але НЕ завантажує бібліотеки
+                        // лоадера (quilt-loader-*.jar, intermediary, тощо) — вони розміщені на
+                        // maven.quiltmc.org і потребують окремого проходу InstallAsync.
+                        // Без цього кроку Java отримує classpath з посиланнями на відсутні JAR-и
+                        // і падає з ClassNotFoundException: KnotClient одразу після старту.
+                        // (Ідентична причина раніше ламала Fabric, там виправили через
+                        // ResolveInstalledLoaderVersionId; для Quilt потрібен ще й цей крок.)
+                        await launcherInstance.InstallAsync(instance.LaunchVersionId, cancellationToken: cancellationToken);
                         break;
                     }
                 case "forge":
