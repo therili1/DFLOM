@@ -234,7 +234,7 @@ namespace Launcher
                 {
                     TraceEx("Create MainWindow", ex);
                     WriteStartupLog("Create MainWindow", ex);
-                    throw; // Fatal.
+                    throw; // Fatal — caught by outer catch below.
                 }
 
                 Trace("OnLaunched: before Activate()");
@@ -247,7 +247,7 @@ namespace Launcher
                 {
                     TraceEx("MainWindow.Activate", ex);
                     WriteStartupLog("MainWindow.Activate", ex);
-                    throw; // Fatal.
+                    throw; // Fatal — caught by outer catch below.
                 }
 
                 Trace("OnLaunched: completed successfully");
@@ -256,7 +256,16 @@ namespace Launcher
             {
                 TraceEx("OnLaunched (fatal)", ex);
                 WriteStartupLog("OnLaunched (fatal — window did not open)", ex);
-                // Do NOT rethrow — rethrowing from async void calls Environment.FailFast.
+
+                // Without a visible window the WinUI message loop keeps the process alive
+                // indefinitely — it appears in Task Manager with ~0% CPU and never exits.
+                // Exit() shuts the message loop cleanly so the user sees the process disappear
+                // rather than hanging as a zombie. The log file already contains the full
+                // exception chain for post-mortem diagnosis.
+                // Do NOT rethrow — rethrowing from async void calls Environment.FailFast
+                // which produces a different (harder to read) crash report.
+                Trace("OnLaunched: calling Application.Current.Exit() to prevent zombie process");
+                Application.Current.Exit();
             }
         }
 

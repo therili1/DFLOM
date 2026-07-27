@@ -8,6 +8,12 @@
     <Platforms>x86;x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
+    <!-- Required for unpackaged (non-MSIX) WinUI 3 apps.
+         Without this, the build tooling generates a packaged-app entry point that does NOT
+         call Bootstrap.Initialize() or initialize MRT Core. At runtime the ms-appx:/// URI
+         scheme is unregistered, so Application.LoadComponent() throws XamlParseException
+         with no inner exception before the first window can be created. -->
+    <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
