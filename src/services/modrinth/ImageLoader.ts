@@ -1,0 +1,1 @@
+export const ImageLoader = { placeholder: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' rx='12' fill='%23292448'/%3E%3C/svg%3E" };

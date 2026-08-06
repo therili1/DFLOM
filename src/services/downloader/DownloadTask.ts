@@ -1,0 +1,2 @@
+export type DownloadStatus = "queued" | "downloading" | "completed" | "failed" | "cancelled";
+export type DownloadTask = { id: string; version: string; status: DownloadStatus; progress: number; downloadedBytes: number; totalBytes: number; error?: string };

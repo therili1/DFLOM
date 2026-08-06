@@ -1,0 +1,1 @@
+export const HashVerifier = { matches: (hash: string, expected: string) => hash.toLowerCase() === expected.toLowerCase() };

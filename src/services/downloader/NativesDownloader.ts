@@ -1,0 +1,1 @@
+export const NativesDownloader = { name: "natives" as const };

@@ -1,0 +1,61 @@
+[package]
+name = "dream-future-launcher"
+version = "0.1.0"
+description = "Dream Future Launcher foundation"
+authors = ["Dream Future Launcher"]
+edition = "2021"
+
+[lib]
+name = "dream_future_launcher_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# NOTE: ResetThemes.exe now lives as plain source at src-tauri/tools/
+# reset_themes.rs -- deliberately moved OUT of src/bin/ (where Cargo
+# auto-discovers binaries) so it's fully excluded from every normal
+# `cargo build` / `tauri build` run and can't affect this build in any
+# way. It's a small, dependency-free (std-only) Rust program; when you
+# want an actual ResetThemes.exe, the simplest way is a standalone
+# one-off crate:
+#   mkdir reset-themes-build && cd reset-themes-build
+#   cargo init --name ResetThemes
+#   copy ..\src-tauri\tools\reset_themes.rs src\main.rs
+#   cargo build --release
+# -> target\release\ResetThemes.exe. Copy that next to the installed
+# launcher's exe. See the comment at the top of reset_themes.rs for what
+# it actually does.
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+rfd = "0.15"
+reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"] }
+sha1 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4"] }
+zip = "2"
+flate2 = "1"
+tar = "0.4"
+tauri = { version = "2", features = ["protocol-asset"] }
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.22"
+
+# keyring 3.x has no default feature set -- each supported OS keychain
+# backend must be opted into explicitly, per-target, or the crate simply
+# won't compile (this was `keyring = "3"` with no features, which fails
+# to build on every platform). See secure_store.rs for how it's used.
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service"] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

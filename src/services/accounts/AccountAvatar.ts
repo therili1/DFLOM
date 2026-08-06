@@ -1,0 +1,1 @@
+export const accountAvatar = (username: string) => `https://mc-heads.net/avatar/${encodeURIComponent(username)}`;

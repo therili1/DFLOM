@@ -1,0 +1,3 @@
+import { modrinthFetch } from "./ModrinthApi";
+export type Project = { project_id: string; slug: string; title: string; description: string; project_type: string; downloads: number; followers: number; icon_url?: string; author: string; categories: string[]; versions: string[]; license?: { id: string; name: string } };
+export const ProjectService = { get: (id: string) => modrinthFetch<Project>(`/project/${encodeURIComponent(id)}`) };

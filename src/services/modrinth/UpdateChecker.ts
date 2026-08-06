@@ -1,0 +1,1 @@
+export const UpdateChecker = { latest: async (project: string, current: string) => ({ project, current }) };

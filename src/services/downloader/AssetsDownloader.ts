@@ -1,0 +1,1 @@
+export const AssetsDownloader = { name: "assets" as const };

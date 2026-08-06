@@ -1,0 +1,1 @@
+export const LibrariesDownloader = { name: "libraries" as const };

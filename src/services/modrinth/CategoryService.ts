@@ -1,0 +1,1 @@
+export const CategoryService = { types: ["mod", "modpack", "shader", "resourcepack", "datapack"], loaders: ["fabric", "forge", "neoforge", "quilt", "paper", "spigot", "bukkit", "vanilla"] };

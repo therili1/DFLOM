@@ -1,0 +1,2 @@
+const prefix = "dfl:modrinth:";
+export const CacheService = { get: <T>(key: string): T | null => { try { const value = localStorage.getItem(prefix + key); return value ? JSON.parse(value) as T : null; } catch { return null; } }, set: (key: string, value: unknown) => localStorage.setItem(prefix + key, JSON.stringify(value)) };
