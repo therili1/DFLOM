@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Blocks, Check, Copy, Eye, FolderOpen, LoaderCircle, MoreHorizontal, Pencil, Plus, Rocket, Search, SlidersHorizontal, Terminal, Trash2, Upload, UserRound, X } from "lucide-react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { InstanceManager, type Instance } from "../services/InstanceManager";
 import { useInstanceStore } from "../stores/InstanceStore";
 import { useVersionStore } from "../stores/versionStore";
@@ -54,6 +55,15 @@ export default function Instances() {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
   const [addingCategory, setAddingCategory] = useState<"mod" | "resourcepack" | "shader" | null>(null);
+
+  // Library toolbar (search / sort / loader filter) -- becomes essential
+  // once someone has more than a handful of instances, otherwise there's
+  // no way to find one build among many identically-shaped cards other
+  // than scrolling and reading every title.
+  const [librarySearch, setLibrarySearch] = useState("");
+  const [librarySort, setLibrarySort] = useState<"recent" | "name" | "size">("recent");
+  const [libraryLoaderFilter, setLibraryLoaderFilter] = useState("");
+  const [expandedInstance, setExpandedInstance] = useState<string | null>(null);
 
   useEffect(() => { void loadInstances(); }, [loadInstances]);
   useEffect(() => { if (modal && !versions.length) void refreshVersions(); }, [modal, versions.length, refreshVersions]);
@@ -266,6 +276,15 @@ export default function Instances() {
     }
   };
   const availableVersions = versions.filter((item) => (versionFilter === "all" || item.type === versionFilter) && item.id.toLowerCase().includes(versionSearch.toLowerCase()));
+  const libraryLoaders = Array.from(new Set(instances.map((item) => item.loader))).sort();
+  const visibleInstances = instances
+    .filter((item) => !libraryLoaderFilter || item.loader === libraryLoaderFilter)
+    .filter((item) => !librarySearch.trim() || item.name.toLowerCase().includes(librarySearch.trim().toLowerCase()) || item.minecraftVersion.toLowerCase().includes(librarySearch.trim().toLowerCase()))
+    .sort((a, b) => {
+      if (librarySort === "name") return a.name.localeCompare(b.name);
+      if (librarySort === "size") return b.size - a.size;
+      return new Date(b.created).getTime() - new Date(a.created).getTime();
+    });
   const buildLaunchCommand = (instance: Instance) => {
     const profile: LaunchProfile = {
       instanceName: instance.name,
@@ -291,9 +310,26 @@ export default function Instances() {
     {error && <div className="instance-error">{error.replace("Error: ", "")}</div>}
     {launchError && <div className="instance-error">{launchError.replace("Error: ", "")}</div>}
     {launchStatus && <div className="instance-meta launch-status-banner">{launchStatus}</div>}
-    {loading && !instances.length ? <div className="instance-loading">Loading your instances…</div> : instances.length ? <div className="instances-list">{instances.map((instance) => <article className="managed-instance-card" key={instance.name} onClick={() => selectInstance(instance)}>
-      <div className="managed-banner"><div className="instance-mark"><Blocks size={25} /></div><button className="card-menu" aria-label={`Actions for ${instance.name}`}><MoreHorizontal size={18} /></button></div>
-      <div className="managed-body"><div className="managed-heading"><div><h2>{instance.name}</h2><p>{instance.minecraftVersion} <span>·</span> {instance.loader}{instance.loaderVersion && instance.loader !== "Vanilla" ? ` ${instance.loaderVersion}` : ""}</p></div><span className="status-pill">READY</span></div><div className="instance-meta"><span>Created {new Date(instance.created).toLocaleDateString()}</span><span>{formatSize(instance.size)}</span></div><div className="instance-actions">
+    {instances.length > 0 && <div className="instances-toolbar">
+      <div className="instances-search"><Search size={14} /><input value={librarySearch} onChange={(event) => setLibrarySearch(event.target.value)} placeholder="Search instances…" /></div>
+      {libraryLoaders.length > 1 && <select value={libraryLoaderFilter} onChange={(event) => setLibraryLoaderFilter(event.target.value)}><option value="">All loaders</option>{libraryLoaders.map((item) => <option key={item} value={item}>{item}</option>)}</select>}
+      <select value={librarySort} onChange={(event) => setLibrarySort(event.target.value as typeof librarySort)}>
+        <option value="recent">Newest first</option>
+        <option value="name">Name (A–Z)</option>
+        <option value="size">Size (largest first)</option>
+      </select>
+      <span className="instances-count">{visibleInstances.length} of {instances.length}</span>
+    </div>}
+    {loading && !instances.length ? <div className="instance-loading">Loading your instances…</div> : instances.length ? (visibleInstances.length ? <div className="instances-list">{visibleInstances.map((instance) => {
+      const isExpanded = expandedInstance === instance.name;
+      return <article className={`managed-instance-card${isExpanded ? " expanded" : " collapsed"}`} key={instance.name} onClick={() => { selectInstance(instance); setExpandedInstance(instance.name); }}>
+      <div className="managed-banner"><div className="instance-mark">{instance.iconPath ? <img src={convertFileSrc(instance.iconPath)} alt="" /> : <Blocks size={25} />}</div><button className="card-menu" aria-label={`Actions for ${instance.name}`}><MoreHorizontal size={18} /></button></div>
+      <div className="managed-body"><div className="managed-heading"><div><h2>{instance.name}</h2><p>{instance.minecraftVersion} <span>·</span> {instance.loader}{instance.loaderVersion && instance.loader !== "Vanilla" ? ` ${instance.loaderVersion}` : ""}</p></div><span className="status-pill">READY</span></div>
+      {!isExpanded && <div className="instance-actions collapsed-actions">
+        <button className="primary-button launch-button" disabled={launching === instance.name} onClick={(event) => { event.stopPropagation(); void launch(instance); }}>{launching === instance.name ? <LoaderCircle className="spin" size={14} /> : <Rocket size={14} />} {launching === instance.name ? "Launching…" : "Play"}</button>
+      </div>}
+      <div className={`instance-expand${isExpanded ? " open" : ""}`}><div>
+      <div className="instance-meta"><span>Created {new Date(instance.created).toLocaleDateString()}</span><span>{formatSize(instance.size)}</span></div><div className="instance-actions">
         <button className="primary-button launch-button" disabled={launching === instance.name} onClick={(event) => { event.stopPropagation(); void launch(instance); }}>{launching === instance.name ? <LoaderCircle className="spin" size={14} /> : <Rocket size={14} />} {launching === instance.name ? "Launching…" : "Play"}</button>
         <div className="play-with-wrap">
           <button title="Play with…" onClick={(event) => { event.stopPropagation(); setPlayWithFor(playWithFor === instance.name ? null : instance.name); }}><UserRound size={14} /></button>
@@ -309,8 +345,11 @@ export default function Instances() {
         <button title="Duplicate" onClick={(event) => { event.stopPropagation(); void duplicate(instance); }}><Copy size={14} /></button>
         <button title="Open folder" onClick={(event) => { event.stopPropagation(); void InstanceManager.openFolder(instance.name); }}><FolderOpen size={14} /></button>
         <button className="danger-action" title="Delete" onClick={(event) => { event.stopPropagation(); if (window.confirm(`Delete ${instance.name}?`)) void deleteInstance(instance.name); }}><Trash2 size={14} /></button>
+      </div>
       </div></div>
-     </article>)}</div> : <div className="instances-empty"><div className="empty-icon"><Blocks size={24} /></div><span className="eyebrow">YOUR LIBRARY IS READY</span><h2>No instances yet</h2><p>Create your first Minecraft instance to get started.</p><button className="primary-button" onClick={() => setModal(true)}><Plus size={15} /> Create Instance</button></div>}
+      </div>
+     </article>;
+    })}</div> : <div className="instances-empty-filtered"><Search size={20} /><span>No instances match your search.</span></div>) : <div className="instances-empty"><div className="empty-icon"><Blocks size={24} /></div><span className="eyebrow">YOUR LIBRARY IS READY</span><h2>No instances yet</h2><p>Create your first Minecraft instance to get started.</p><button className="primary-button" onClick={() => setModal(true)}><Plus size={15} /> Create Instance</button></div>}
      {instances.length > 0 && <section className="launch-debug-builder"><div className="section-heading"><div><span className="eyebrow"><Terminal size={13} /> LAUNCH CORE</span><h2>Build Launch Command</h2><p className="section-description">Prepare a launch command for the selected instance. Minecraft will not start yet.</p></div></div><div className="launch-form-grid"><label>Java<select value={selectedJava?.path || ""} onChange={(event) => { const java = javaInstallations.find((item) => item.path === event.target.value); if (java) useJavaStore.getState().setDefaultJava(java); }}><option value="">System Java</option>{javaInstallations.map((java) => <option key={java.path} value={java.path}>{java.version} · {java.vendor}</option>)}</select></label><label>RAM Minimum (MB)<input type="number" min={512} max={memory.maximumMemoryMb} value={ramMin} onChange={(event) => setRamMin(Number(event.target.value))} /></label><label>RAM Maximum (MB)<input type="number" min={512} max={memory.maximumMemoryMb} value={ramMax} onChange={(event) => setRamMax(Number(event.target.value))} /></label><label>Width<input type="number" min={640} value={width} onChange={(event) => setWidth(Number(event.target.value))} /></label><label>Height<input type="number" min={480} value={height} onChange={(event) => setHeight(Number(event.target.value))} /></label><label className="full-row">Java Arguments<input value={javaArgs} onChange={(event) => setJavaArgs(event.target.value)} placeholder="-XX:+UseZGC -Dfoo=bar" /></label></div><div className="memory-note">System RAM: {memory.systemMemoryMb} MB · Maximum allowed: {memory.maximumMemoryMb} MB · Recommended: {memory.recommendedMemoryMb} MB</div><button className="primary-button" onClick={() => buildLaunchCommand(instances[0])}><Terminal size={15} /> Build Launch Command</button></section>}
      {launchCommand && <section className="launch-debug-panel"><div className="section-heading"><div><span className="eyebrow">LAUNCH DEBUG</span><h2>Command prepared</h2></div><button className="text-button" onClick={() => setLaunchCommand(null)}>Clear</button></div><div className="debug-grid"><div><span>Java</span><strong>{launchCommand.javaPath}</strong></div><div><span>RAM</span><strong>{launchCommand.ram}</strong></div><div><span>Version</span><strong>{launchCommand.version}</strong></div><div><span>Working Directory</span><strong>{launchCommand.workingDirectory}</strong></div><div><span>Libraries</span><strong>{launchCommand.libraries.length ? launchCommand.libraries.length : "Not downloaded yet"}</strong></div></div><pre className="command-output">{launchCommand.command}</pre></section>}
     {contentModal && <div className="modal-backdrop" onClick={() => setContentModal(null)}><div className="modal-card compact-modal" onClick={(event) => event.stopPropagation()}>

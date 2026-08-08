@@ -1,8 +1,9 @@
 import { NavLink } from "react-router-dom";
-import { Blocks, Download, Gamepad2, Home, LayoutGrid, Palette, Settings, Store, Terminal, UserRound } from "lucide-react";
+import { Blocks, Download, Home, LayoutGrid, Palette, Settings, Sparkles, Store, Terminal, UserRound } from "lucide-react";
 import Brand from "./Brand";
 import type { NavigationItem } from "../types/navigation";
 import { useThemeEngineStore } from "../stores/themeEngineStore";
+import { useAiHelperStore } from "../stores/aiHelperStore";
 
 const items: NavigationItem[] = [
   { label: "Home", path: "/", icon: "home" },
@@ -11,12 +12,13 @@ const items: NavigationItem[] = [
   { label: "Downloads", path: "/downloads", icon: "downloads" },
   { label: "Theme Maker", path: "/theme-maker", icon: "theme-maker" },
   { label: "Theme Editor", path: "/theme-editor", icon: "theme-editor" },
+  { label: "AI Helper", path: "/ai-helper", icon: "ai-helper" },
   { label: "Logs", path: "/logs", icon: "logs" },
   { label: "Settings", path: "/settings", icon: "settings" },
   { label: "Accounts", path: "/accounts", icon: "accounts" },
 ];
 
-const icons = { home: Home, instances: Blocks, marketplace: Store, downloads: Download, "theme-maker": Palette, "theme-editor": LayoutGrid, logs: Terminal, settings: Settings, accounts: UserRound };
+const icons = { home: Home, instances: Blocks, marketplace: Store, downloads: Download, "theme-maker": Palette, "theme-editor": LayoutGrid, "ai-helper": Sparkles, logs: Terminal, settings: Settings, accounts: UserRound };
 
 // Stable key for hiddenTabs/tabOrder matching -- "home" for "/", otherwise
 // the path without its leading slash (e.g. "/theme-maker" -> "theme-maker").
@@ -32,10 +34,17 @@ const LOCKED_TABS = new Set(["home", "settings", "theme-editor"]);
 
 export default function Sidebar() {
   const current = useThemeEngineStore((state) => state.current);
+  const aiHelperVisible = useAiHelperStore((state) => state.visible);
   const hidden = new Set(current?.hiddenTabs ?? []);
   const order = current?.tabOrder ?? [];
 
-  const visible = items.filter((item) => LOCKED_TABS.has(navKey(item.path)) || !hidden.has(navKey(item.path)));
+  // AI Helper only ever shows once BOTH the Settings toggle is on and a
+  // Gemini key is saved (get_ai_helper_visible enforces the AND server-side
+  // too) -- otherwise it's filtered out here exactly like a theme-hidden
+  // tab, just gated by this instead of hiddenTabs.
+  const visible = items
+    .filter((item) => navKey(item.path) !== "ai-helper" || aiHelperVisible)
+    .filter((item) => LOCKED_TABS.has(navKey(item.path)) || !hidden.has(navKey(item.path)));
   const sorted = order.length
     ? [...visible].sort((a, b) => {
         const ai = order.indexOf(navKey(a.path));

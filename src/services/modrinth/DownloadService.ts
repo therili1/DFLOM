@@ -33,8 +33,8 @@ export const DownloadService = {
   install: (url: string, instanceDirectory: string, projectType: string, filename: string, size: number) =>
     invoke<void>("install_modrinth_file", { url, instanceDirectory, projectType, filename, size }),
 
-  installModpack: (url: string, filename: string, instanceName: string, minecraftVersion: string, loader: string) =>
-    invoke<{ name: string }>("install_modrinth_modpack", { url, filename, instanceName, minecraftVersion, loader }),
+  installModpack: (url: string, filename: string, instanceName: string, minecraftVersion: string, loader: string, iconUrl?: string) =>
+    invoke<{ name: string }>("install_modrinth_modpack", { url, filename, instanceName, minecraftVersion, loader, iconUrl }),
 
   // Installs a mod/shader/resourcepack/datapack version into an existing instance.
   installVersion: async (version: ModrinthVersion, instanceDirectory: string, projectType: string) => {
@@ -43,10 +43,14 @@ export const DownloadService = {
   },
 
   // Downloads a modpack version and creates a brand new instance from it.
-  installModpackVersion: async (version: ModrinthVersion, instanceName: string) => {
+  // iconUrl (the source project's own icon, e.g. project.icon_url from the
+  // marketplace search result) is downloaded once server-side and stored
+  // locally with the instance -- see download_instance_icon() in lib.rs --
+  // so the new instance card shows real artwork instead of the generic icon.
+  installModpackVersion: async (version: ModrinthVersion, instanceName: string, iconUrl?: string) => {
     const file = pickFile(version);
     const minecraftVersion = version.game_versions[0] ?? "Unknown";
     const loader = normalizeLoaderName(version.loaders[0]);
-    return DownloadService.installModpack(file.url, file.filename, instanceName, minecraftVersion, loader);
+    return DownloadService.installModpack(file.url, file.filename, instanceName, minecraftVersion, loader, iconUrl);
   },
 };

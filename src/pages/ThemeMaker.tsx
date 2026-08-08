@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { ArrowDown, ArrowUp, Download, FolderOpen, LoaderCircle, Package, Palette, Type, X } from "lucide-react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -15,11 +16,18 @@ const TAB_LABELS: Record<string, string> = {
   downloads: "Downloads",
   "theme-maker": "Theme Maker",
   "theme-editor": "Theme Editor",
+  "ai-helper": "AI Helper",
   logs: "Logs",
   settings: "Settings",
   accounts: "Accounts",
 };
 const DEFAULT_TAB_ORDER = Object.keys(TAB_LABELS);
+// Hybrid Mode's fixed set of per-page CSS slots: the two always-present
+// chrome pieces, "home" (not in TAB_LABELS -- it's never hidden/reordered),
+// then one slot per nav tab (already includes "ai-helper"). Matches the
+// keys sanitize_page_key/theme_pack accept on the backend.
+const HYBRID_PAGE_KEYS = ["sidebar", "topbar", "home", ...Object.keys(TAB_LABELS)];
+const HYBRID_PAGE_LABELS: Record<string, string> = { sidebar: "Sidebar", topbar: "Topbar", home: "Home", ...TAB_LABELS };
 // Same lock as ThemeEditor.tsx / Sidebar.tsx -- a theme that ships with
 // these hidden would lock the user out of the only screens that can fix
 // the layout, so they can't be hidden even at creation time.
@@ -40,6 +48,8 @@ export default function ThemeMaker() {
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [fontPaths, setFontPaths] = useState<string[]>([]);
   const [customCssPath, setCustomCssPath] = useState<string | null>(null);
+  const [cssMode, setCssMode] = useState<"standard" | "hybrid">("standard");
+  const [pageCssPaths, setPageCssPaths] = useState<Record<string, string>>({});
   const [sidebarPosition, setSidebarPosition] = useState("left");
   const [hiddenTabs, setHiddenTabs] = useState<Set<string>>(new Set());
   const [tabOrder, setTabOrder] = useState<string[]>(DEFAULT_TAB_ORDER);
@@ -54,9 +64,15 @@ export default function ThemeMaker() {
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const [aiHasKey, setAiHasKey] = useState<boolean | null>(null);
 
+  // Runs once on mount AND every time this tab becomes visible again --
+  // every page mounts once up front and is just hidden/shown (see
+  // MainLayout), so a mount-only check here would miss a key saved in
+  // Settings after the app started and leave the input stuck disabled.
+  const location = useLocation();
   useEffect(() => {
+    if (location.pathname !== "/theme-maker") return;
     ThemeEngineService.hasGeminiApiKey().then(setAiHasKey).catch(() => setAiHasKey(false));
-  }, []);
+  }, [location.pathname]);
 
   // Native drag&drop for the background/video dropzone.
   //
@@ -141,6 +157,22 @@ export default function ThemeMaker() {
     }
   };
 
+  const browsePageCss = async (key: string) => {
+    setError(null);
+    try {
+      const path = await ThemeEngineService.browseCustomCss();
+      if (path) setPageCssPaths((current) => ({ ...current, [key]: path }));
+    } catch (browseError) {
+      setError(browseError instanceof Error ? browseError.message : String(browseError));
+    }
+  };
+
+  const clearPageCss = (key: string) => setPageCssPaths((current) => {
+    const next = { ...current };
+    delete next[key];
+    return next;
+  });
+
   const addFonts = async () => {
     setError(null);
     try {
@@ -209,7 +241,9 @@ export default function ThemeMaker() {
     try {
       const path = await ThemeEngineService.pack({
         name, author, version, backgroundPath, previewPath, fontPaths,
-        customCssPath, sidebarPosition, hiddenTabs: [...hiddenTabs], tabOrder,
+        customCssPath: cssMode === "standard" ? customCssPath : null,
+        sidebarPosition, hiddenTabs: [...hiddenTabs], tabOrder,
+        pageCssPaths: cssMode === "hybrid" ? pageCssPaths : undefined,
       });
       setSavedPath(path);
     } catch (packError) {
@@ -287,12 +321,55 @@ export default function ThemeMaker() {
         </ul>}
         <p className="data-dir-note">Fonts are bundled into the .dftp as-is. Applying a bundled font automatically when the theme is active is a separate feature, not built yet.</p>
 
-        <div className="data-dir-row">
-          <code className="data-dir-path">{customCssPath ?? "No custom CSS added (optional)"}</code>
-          <button className="secondary-button" onClick={() => void browseCustomCss()}><FolderOpen size={14} /> Choose custom .css...</button>
+        <div>
+          <strong style={{ fontSize: 12 }}>CSS mode</strong>
+          <div className="theme-maker-css-mode" style={{ display: "flex", gap: 4, marginTop: 6 }}>
+            <button
+              className={`secondary-button${cssMode === "standard" ? " active" : ""}`}
+              style={{ flex: 1, opacity: cssMode === "standard" ? 1 : 0.6 }}
+              onClick={() => setCssMode("standard")}
+            >
+              Standard Mode
+            </button>
+            <button
+              className={`secondary-button${cssMode === "hybrid" ? " active" : ""}`}
+              style={{ flex: 1, opacity: cssMode === "hybrid" ? 1 : 0.6 }}
+              onClick={() => setCssMode("hybrid")}
+            >
+              Hybrid Mode
+            </button>
+          </div>
+          <p className="data-dir-note">
+            {cssMode === "standard"
+              ? "One custom.css file for the whole theme."
+              : "Separate optional CSS files per page/section (sidebar, topbar, home, each tab) instead of one big custom.css."}
+          </p>
         </div>
 
-        <ThemeAiChatPanel hasKey={aiHasKey} onCssApplied={(path) => setCustomCssPath(path)} />
+        {cssMode === "standard" ? (
+          <div className="data-dir-row">
+            <code className="data-dir-path">{customCssPath ?? "No custom CSS added (optional)"}</code>
+            <button className="secondary-button" onClick={() => void browseCustomCss()}><FolderOpen size={14} /> Choose custom .css...</button>
+          </div>
+        ) : (
+          <ul className="theme-maker-tab-list">
+            {HYBRID_PAGE_KEYS.map((key) => <li key={key}>
+              <div className="data-dir-row" style={{ flex: 1 }}>
+                <span style={{ minWidth: 90, fontSize: 12 }}>{HYBRID_PAGE_LABELS[key] ?? key}</span>
+                <code className="data-dir-path">{pageCssPaths[key] ?? "Not set (optional)"}</code>
+                <button className="secondary-button" onClick={() => void browsePageCss(key)}><FolderOpen size={14} /> Choose...</button>
+                {pageCssPaths[key] && <button className="icon-action" title="Clear" onClick={() => clearPageCss(key)}><X size={13} /></button>}
+              </div>
+            </li>)}
+          </ul>
+        )}
+
+        <ThemeAiChatPanel
+          hasKey={aiHasKey}
+          onCssApplied={(path) => setCustomCssPath(path)}
+          onPageCssApplied={cssMode === "hybrid" ? (key, path) => { if (path) setPageCssPaths((current) => ({ ...current, [key]: path })); } : undefined}
+          draftMode={cssMode === "hybrid"}
+        />
 
         <label>Sidebar position
           <select value={sidebarPosition} onChange={(event) => setSidebarPosition(event.target.value)}>

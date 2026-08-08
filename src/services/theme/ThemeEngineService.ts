@@ -25,6 +25,9 @@ export type ThemeDraft = {
   sidebarPosition: string;
   hiddenTabs: string[];
   tabOrder: string[];
+  /** Hybrid Mode only: page key -> chosen CSS file path (sidebar/topbar/
+   *  home/each nav tab). Omitted or empty in Standard Mode. */
+  pageCssPaths?: Record<string, string>;
 };
 
 export const ThemeEngineService = {
@@ -37,6 +40,8 @@ export const ThemeEngineService = {
   remove: (themeId: string) => invoke<void>("theme_remove", { themeId }),
   readCss: (themeId: string) => invoke<string | null>("theme_read_css", { themeId }),
   readPageCss: (themeId: string) => invoke<Record<string, string>>("theme_read_page_css", { themeId }),
+  writePageCss: (themeId: string, pageKey: string, css: string) =>
+    invoke<void>("theme_write_page_css", { themeId, pageKey, css }),
   updateLayout: (themeId: string, sidebarPosition: string, hiddenTabs: string[], tabOrder: string[]) =>
     invoke<void>("theme_update_layout", { themeId, sidebarPosition, hiddenTabs, tabOrder }),
 
@@ -52,5 +57,6 @@ export const ThemeEngineService = {
   generateCss: (description: string) => invoke<string>("generate_theme_css", { description }),
   chat: (history: { role: "user" | "assistant"; text: string }[], message: string, mode: "develop" | "update") =>
     invoke<string>("gemini_chat", { history, message, mode }),
-  saveChatMessageAsCss: (message: string) => invoke<string>("save_chat_message_as_css", { message }),
+  saveChatMessageAsCss: (message: string, pageKey?: string | null, draft?: boolean) =>
+    invoke<string>("save_chat_message_as_css", { message, pageKey: pageKey ?? null, draft: draft ?? false }),
 };

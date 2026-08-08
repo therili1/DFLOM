@@ -730,7 +730,13 @@ icons/README.txt  -- статус підтримки власних іконок
 
 Ключі вкладок (для `hiddenTabs` / `tabOrder`):
 `home` `instances` `marketplace` `downloads` `theme-maker` `theme-editor`
-`logs` `settings` `accounts`
+`ai-helper` `logs` `settings` `accounts`
+
+**`ai-helper`** з'являється в лаунчері (і, відповідно, лише тоді має сенс
+у `hiddenTabs`/`tabOrder`/`pages/ai-helper.css`) тільки коли користувач
+сам увімкнув AI Helper і зберіг API-ключ у Settings -- якщо цих умов
+нема, вкладки просто нема, ховати/показувати через `hiddenTabs` нічого
+не змінить.
 
 **Важливо:** `"home"`, `"settings"` і `"theme-editor"` НІКОЛИ не можна
 сховати -- лаунчер це просто проігнорує, навіть якщо вони є в
@@ -849,6 +855,16 @@ manifest.json не треба. Немає файлу для якоїсь вкл�
 4. Постав активним і темний, і світлий акцентний колір користувача
    (Settings) -- переконайся, що текст читається на обох.
 "#;
+
+/// The launcher's actual production stylesheet, embedded at compile time.
+/// Giving the AI the REAL, uncommented CSS (every class the UI actually
+/// uses, with its current values) instead of just the ~15 example
+/// selectors in TEMPLATE_CUSTOM_CSS below is what makes generated themes
+/// look thorough and intentional instead of generic/weak -- the model can
+/// see exactly what it's overriding (marketplace grid, instance cards,
+/// modals, pills, progress bars, forms, etc.) instead of guessing class
+/// names beyond the handful the template happens to show.
+const LIVE_APP_CSS: &str = include_str!("../../src/styles/index.css");
 
 const TEMPLATE_MANIFEST: &str = r#"{
   "name": "Моя нова тема",
@@ -1051,8 +1067,8 @@ const TEMPLATE_PAGE_HOME_CSS: &str = r#"/* =====================================
    Ім'я файлу = ключ вкладки (те саме, що в hiddenTabs/tabOrder):
    home.css, instances.css, marketplace.css, downloads.css,
    settings.css, accounts.css, logs.css, theme-maker.css,
-   theme-editor.css -- додай будь-який з них за тим самим
-   принципом, якого немає в архіві просто ігнорується. */
+   theme-editor.css, ai-helper.css -- додай будь-який з них за тим
+   самим принципом, якого немає в архіві просто ігнорується. */
 
 /* ---- Hero ---- */
 .hero-card {
@@ -1128,11 +1144,20 @@ pub fn theme_download_template_impl() -> Result<String, String> {
 pub fn ai_template_context() -> String {
     format!(
         "=== manifest.json ===\n{TEMPLATE_MANIFEST}\n\n\
-         === custom.css ===\n{TEMPLATE_CUSTOM_CSS}\n\n\
+         === custom.css (starter template -- mostly commented out, just shows the pattern/available hooks) ===\n{TEMPLATE_CUSTOM_CSS}\n\n\
          === pages/sidebar.css ===\n{TEMPLATE_PAGE_SIDEBAR_CSS}\n\n\
          === pages/topbar.css ===\n{TEMPLATE_PAGE_TOPBAR_CSS}\n\n\
-         === pages/home.css ===\n{TEMPLATE_PAGE_HOME_CSS}\n"
+         === pages/home.css ===\n{TEMPLATE_PAGE_HOME_CSS}\n\n\
+         === launcher's REAL production stylesheet (every class actually used across every page, with current live values) -- this is what a custom.css override sits on top of; use it to find real selectors for parts of the UI the template above doesn't show (marketplace grid, instance cards, modals, forms, pills, progress bars, tabs, empty states, etc.) ===\n{LIVE_APP_CSS}\n"
     )
+}
+
+/// The id of the currently active installed theme, if any. Small public
+/// helper so lib.rs (save_chat_message_as_css) can target
+/// theme_write_page_css at the active theme without reaching into the
+/// registry's internals itself.
+pub fn active_theme_id(app: &AppHandle) -> Result<Option<String>, String> {
+    Ok(read_registry(app)?.active_id)
 }
 
 /// "Оновлення теми" (update) mode: the user's currently active installed
@@ -1160,6 +1185,7 @@ pub fn ai_active_theme_context(app: &AppHandle) -> Result<String, String> {
     for (page_name, css) in pages {
         context.push_str(&format!("\n=== pages/{page_name}.css (current) ===\n{css}\n"));
     }
+    context.push_str(&format!("\n=== launcher's REAL production stylesheet (every class actually used across every page, with current live values) -- use it to find real selectors for anything this theme's own CSS above doesn't already touch ===\n{LIVE_APP_CSS}\n"));
     Ok(context)
 }
 
@@ -1439,6 +1465,30 @@ pub fn theme_read_page_css_impl(app: AppHandle, theme_id: String) -> Result<Hash
     Ok(result)
 }
 
+/// Writes (creates or overwrites) one pages/<page_key>.css file for an
+/// already-installed theme -- the write-side counterpart to
+/// theme_read_page_css. Used by the Theme Editor's per-page CSS blocks and
+/// by save_chat_message_as_css (lib.rs) when the AI chat targets a specific
+/// page instead of the single custom.css. Runs the same sanitize_custom_css
+/// pass as install/packing so a hand-edited or AI-authored page CSS can't
+/// smuggle in a network-reaching @import/url(). page_key goes through
+/// sanitize_page_key first, same as theme_pack, so it can never escape the
+/// theme's pages/ folder.
+#[tauri::command]
+pub async fn theme_write_page_css(app: AppHandle, theme_id: String, page_key: String, css: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || theme_write_page_css_impl(app, theme_id, page_key, css))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+pub fn theme_write_page_css_impl(app: AppHandle, theme_id: String, page_key: String, css: String) -> Result<(), String> {
+    let safe_key = sanitize_page_key(&page_key).ok_or_else(|| format!("Invalid page key \"{page_key}\"."))?;
+    let pages_dir = themes_root(&app)?.join(&theme_id).join("pages");
+    fs::create_dir_all(&pages_dir).map_err(|error| error.to_string())?;
+    let cleaned = sanitize_custom_css(&css);
+    fs::write(pages_dir.join(format!("{safe_key}.css")), cleaned).map_err(|error| error.to_string())
+}
+
 
 /// Theme Editor (as opposed to Theme Maker): edits LAYOUT settings of an
 /// ALREADY INSTALLED theme in place — sidebar position, hidden tabs, tab
@@ -1588,13 +1638,13 @@ pub fn browse_theme_fonts_impl() -> Result<Vec<String>, String> {
 /// step (reading fonts/*.ttf|*.otf back out and injecting @font-face rules
 /// at theme-activation time).
 #[tauri::command]
-pub async fn theme_pack(name: String, author: String, version: String, background_path: Option<String>, preview_path: Option<String>, font_paths: Vec<String>, custom_css_path: Option<String>, sidebar_position: String, hidden_tabs: Vec<String>, tab_order: Vec<String>) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || theme_pack_impl(name, author, version, background_path, preview_path, font_paths, custom_css_path, sidebar_position, hidden_tabs, tab_order))
+pub async fn theme_pack(name: String, author: String, version: String, background_path: Option<String>, preview_path: Option<String>, font_paths: Vec<String>, custom_css_path: Option<String>, sidebar_position: String, hidden_tabs: Vec<String>, tab_order: Vec<String>, page_css_paths: Option<HashMap<String, String>>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || theme_pack_impl(name, author, version, background_path, preview_path, font_paths, custom_css_path, sidebar_position, hidden_tabs, tab_order, page_css_paths.unwrap_or_default()))
         .await
         .map_err(|error| error.to_string())?
 }
 
-pub fn theme_pack_impl(name: String, author: String, version: String, background_path: Option<String>, preview_path: Option<String>, font_paths: Vec<String>, custom_css_path: Option<String>, sidebar_position: String, hidden_tabs: Vec<String>, tab_order: Vec<String>) -> Result<String, String> {
+pub fn theme_pack_impl(name: String, author: String, version: String, background_path: Option<String>, preview_path: Option<String>, font_paths: Vec<String>, custom_css_path: Option<String>, sidebar_position: String, hidden_tabs: Vec<String>, tab_order: Vec<String>, page_css_paths: HashMap<String, String>) -> Result<String, String> {
     if name.trim().is_empty() { return Err("Theme name is required.".into()); }
     if author.trim().is_empty() { return Err("Author is required.".into()); }
     if version.trim().is_empty() { return Err("Version is required.".into()); }
@@ -1634,6 +1684,22 @@ pub fn theme_pack_impl(name: String, author: String, version: String, background
         let ext = Path::new(font_path).extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
         if ext != "ttf" && ext != "otf" {
             return Err(format!("Unsupported font file type: \".{ext}\" (only .ttf/.otf are supported)."));
+        }
+    }
+
+    // Same up-front validation for Hybrid Mode's per-page CSS files: reject
+    // an unexpected key or an unreadable path before anything is written,
+    // rather than leaving a half-packed .dftp behind. Keys are the fixed
+    // set Theme Maker's own UI offers (sidebar/topbar/page nav keys), never
+    // arbitrary user text, but this is still a Tauri command boundary --
+    // sanitize_page_key keeps a key like "../../evil" from ever becoming a
+    // zip entry path.
+    for (page_key, css_path) in &page_css_paths {
+        if sanitize_page_key(page_key).is_none() {
+            return Err(format!("Invalid page key \"{page_key}\"."));
+        }
+        if !Path::new(css_path).is_file() {
+            return Err(format!("Page CSS file not found: {css_path}"));
         }
     }
 
@@ -1681,8 +1747,31 @@ pub fn theme_pack_impl(name: String, author: String, version: String, background
         writer.start_file("custom.css", options).map_err(|error| error.to_string())?;
         writer.write_all(&bytes).map_err(|error| error.to_string())?;
     }
+    // Hybrid Mode: one pages/<key>.css entry per page the user attached a
+    // file for. Presence of a pages/ folder at all is what the theme engine
+    // already treats as "this theme also has per-page overrides" -- no
+    // separate manifest flag needed (see theme_read_page_css_impl, which
+    // just reads whatever pages/*.css files happen to exist).
+    for (page_key, css_path) in &page_css_paths {
+        let Some(safe_key) = sanitize_page_key(page_key) else { continue };
+        let bytes = fs::read(css_path).map_err(|error| error.to_string())?;
+        writer.start_file(format!("pages/{safe_key}.css"), options).map_err(|error| error.to_string())?;
+        writer.write_all(&bytes).map_err(|error| error.to_string())?;
+    }
 
     writer.finish().map_err(|error| error.to_string())?;
     Ok(save_path.to_string_lossy().to_string())
+}
+
+/// Only lowercase ascii letters, digits, and hyphens -- matches every real
+/// page key (nav route keys like "instances"/"ai-helper", plus the two
+/// always-on "sidebar"/"topbar" pseudo-pages). Rejects anything else
+/// (empty, path separators, "..", etc.) instead of letting it become a zip
+/// entry path.
+fn sanitize_page_key(key: &str) -> Option<String> {
+    let trimmed = key.trim().to_lowercase();
+    if trimmed.is_empty() || trimmed.len() > 64 { return None; }
+    if !trimmed.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') { return None; }
+    Some(trimmed)
 }
 

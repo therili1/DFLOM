@@ -1,9 +1,10 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, Search, UserRound, WifiOff } from "lucide-react";
+import { Bell, Search, UserRound, Wifi, WifiOff } from "lucide-react";
 import { isTauri, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Sidebar from "../components/Sidebar";
+import AccountQuickPanel from "../components/AccountQuickPanel";
 import Home from "../pages/Home";
 import Instances from "../pages/Instances";
 import Marketplace from "../pages/Marketplace";
@@ -13,12 +14,15 @@ import Accounts from "../pages/Accounts";
 import Logs from "../pages/Logs";
 import ThemeMaker from "../pages/ThemeMaker";
 import ThemeEditor from "../pages/ThemeEditor";
+import AiHelper from "../pages/AiHelper";
 import { useThemeStore } from "../stores/themeStore";
 import { useThemeEngineStore } from "../stores/themeEngineStore";
 import { useAccountStore } from "../stores/accountStore";
 import { useInstanceStore } from "../stores/InstanceStore";
 import { useLogsStore } from "../stores/logsStore";
 import { useAccentStore } from "../stores/accentStore";
+import { useAiHelperStore } from "../stores/aiHelperStore";
+import { resolveAvatarSrc } from "../services/accounts/OfflineAccount";
 
 // Every page is mounted ONCE, up front, and just hidden (display: none)
 // while its tab isn't active -- switching tabs used to unmount/remount
@@ -34,6 +38,7 @@ const PAGES: { path: string; key: string; element: ReactNode }[] = [
   { path: "/downloads", key: "downloads", element: <Downloads /> },
   { path: "/theme-maker", key: "theme-maker", element: <ThemeMaker /> },
   { path: "/theme-editor", key: "theme-editor", element: <ThemeEditor /> },
+  { path: "/ai-helper", key: "ai-helper", element: <AiHelper /> },
   { path: "/settings", key: "settings", element: <Settings /> },
   { path: "/accounts", key: "accounts", element: <Accounts /> },
   { path: "/logs", key: "logs", element: <Logs /> },
@@ -51,11 +56,26 @@ export default function MainLayout() {
   const loadCurrentTheme = useThemeEngineStore((state) => state.loadCurrent);
   const applyPageCss = useThemeEngineStore((state) => state.applyPageCss);
   const pageCssMap = useThemeEngineStore((state) => state.pageCssMap);
+  const refreshAiHelper = useAiHelperStore((state) => state.refresh);
   const title = location.pathname === "/" ? "Home" : location.pathname.slice(1).replace("-", " ");
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   useEffect(() => { void loadInstances(); }, [loadInstances]);
   useEffect(() => { void loadAccounts(); }, [loadAccounts]);
   useEffect(() => { applyAccent(); }, [applyAccent]);
   useEffect(() => { void loadCurrentTheme(); }, [loadCurrentTheme]);
+  useEffect(() => { void refreshAiHelper(); }, [refreshAiHelper]);
+  // The topbar badge used to just say "Offline" unconditionally -- it never
+  // actually checked connectivity. navigator.onLine + the online/offline
+  // window events give a real (if OS-reported, not a live network probe)
+  // answer and update live without a page reload.
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => { window.removeEventListener("online", goOnline); window.removeEventListener("offline", goOffline); };
+  }, []);
   // "Hybrid CSS" mode: re-apply pages/<page>.css (plus the always-on
   // sidebar.css/topbar.css) every time the route changes. pageCssMap is a
   // dependency too so switching themes (which reloads the map) re-applies
@@ -94,12 +114,15 @@ export default function MainLayout() {
         <header className="topbar">
             <div className="breadcrumb"><span>Dream Future Launcher</span><b>/</b><strong>{title}</strong></div>
           <div className="topbar-actions">
-            <button className="offline-button"><WifiOff size={14} /> Offline</button>
+            <button className={`offline-button${isOnline ? " online" : ""}`} title={isOnline ? "Online" : "No network connection detected"}>
+              {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />} {isOnline ? "Online" : "Offline"}
+            </button>
             <button className="icon-button" aria-label="Search"><Search size={17} /></button>
             <button className="icon-button" aria-label="Notifications"><Bell size={17} /><i /></button>
-            <div className="profile">{selectedAccount?.skinPath ? <img className="profile-avatar-image" src={selectedAccount.skinPath} alt="" /> : <div className="avatar"><UserRound size={15} /></div>}<span>{selectedAccount?.username ?? "Guest profile"}</span></div>
+            <div className="profile" role="button" tabIndex={0} style={{ cursor: "pointer" }} onClick={() => setAccountPanelOpen(true)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setAccountPanelOpen(true); }}>{resolveAvatarSrc(selectedAccount?.skinPath) ? <img className="profile-avatar-image" src={resolveAvatarSrc(selectedAccount?.skinPath)} alt="" /> : <div className="avatar"><UserRound size={15} /></div>}<span>{selectedAccount?.username ?? "Guest profile"}</span></div>
           </div>
         </header>
+        {accountPanelOpen && <AccountQuickPanel onClose={() => setAccountPanelOpen(false)} />}
         <div className="page-content">
           {PAGES.map((page) => (
             <div key={page.key} style={{ display: location.pathname === page.path ? "contents" : "none" }}>

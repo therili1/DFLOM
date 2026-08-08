@@ -19,6 +19,18 @@ export type ModrinthVersion = {
 };
 
 export const VersionService = {
-  list: (project: string) => modrinthFetch<ModrinthVersion[]>(`/project/${encodeURIComponent(project)}/version`),
+  // IMPORTANT: this endpoint returns *every* version ever published for the
+  // project if game_versions/loaders aren't passed -- it does NOT inherit
+  // the search facets used to find the project. Always forward the current
+  // Minecraft version / loader filters here so the version list (and the
+  // "preferred" pick derived from it) can't surface builds for a different
+  // game version than what's selected in the UI.
+  list: (project: string, gameVersions?: string[], loaders?: string[]) => {
+    const params = new URLSearchParams();
+    if (gameVersions?.length) params.set("game_versions", JSON.stringify(gameVersions));
+    if (loaders?.length) params.set("loaders", JSON.stringify(loaders));
+    const qs = params.toString();
+    return modrinthFetch<ModrinthVersion[]>(`/project/${encodeURIComponent(project)}/version${qs ? `?${qs}` : ""}`);
+  },
   get: (id: string) => modrinthFetch<ModrinthVersion>(`/version/${encodeURIComponent(id)}`),
 };

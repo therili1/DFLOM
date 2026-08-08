@@ -5,4 +5,5 @@ export const AccountService = {
   create: async (username: string) => AccountStorage.save(createOfflineAccount(username)),
   save: AccountStorage.save,
   remove: AccountStorage.remove,
+  browseSkin: AccountStorage.browseSkin,
 };

@@ -8,6 +8,8 @@ import { useThemeStore } from "../stores/themeStore";
 import { useAccentStore, ACCENT_PRESETS } from "../stores/accentStore";
 import { useThemeEngineStore } from "../stores/themeEngineStore";
 import { useDataDirectoryStore } from "../stores/dataDirectoryStore";
+import { useAiHelperStore } from "../stores/aiHelperStore";
+import { AssistantService } from "../services/ai/AssistantService";
 import { JavaRuntime } from "../services/java/JavaRuntime";
 import { MemoryManager } from "../services/launcher/MemoryManager";
 
@@ -25,9 +27,24 @@ export default function Settings() {
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
   const [geminiKeySaving, setGeminiKeySaving] = useState(false);
   const [geminiKeyError, setGeminiKeyError] = useState<string | null>(null);
+  const refreshAiHelper = useAiHelperStore((state) => state.refresh);
+  const [aiHelperEnabled, setAiHelperEnabled] = useState(false);
+  const [aiHelperSaving, setAiHelperSaving] = useState(false);
   useEffect(() => {
     invoke<boolean>("has_gemini_api_key").then(setGeminiKeySaved).catch(() => {});
+    AssistantService.isEnabled().then(setAiHelperEnabled).catch(() => {});
   }, []);
+
+  const toggleAiHelper = async (enabled: boolean) => {
+    setAiHelperEnabled(enabled);
+    setAiHelperSaving(true);
+    try {
+      await AssistantService.setEnabled(enabled);
+      await refreshAiHelper();
+    } finally {
+      setAiHelperSaving(false);
+    }
+  };
 
   const saveGeminiKey = async () => {
     setGeminiKeyError(null);
@@ -36,6 +53,7 @@ export default function Settings() {
       await invoke("save_gemini_api_key", { apiKey: geminiKeyInput.trim() });
       setGeminiKeySaved(true);
       setGeminiKeyInput("");
+      await refreshAiHelper();
     } catch (saveError) {
       setGeminiKeyError(saveError instanceof Error ? saveError.message : String(saveError));
     } finally {
@@ -48,6 +66,7 @@ export default function Settings() {
     try {
       await invoke("save_gemini_api_key", { apiKey: "" });
       setGeminiKeySaved(false);
+      await refreshAiHelper();
     } catch (clearError) {
       setGeminiKeyError(clearError instanceof Error ? clearError.message : String(clearError));
     }
@@ -124,6 +143,11 @@ export default function Settings() {
         {geminiKeySaved && <button className="icon-action" title="Remove saved key" onClick={() => void clearGeminiKey()}><Trash2 size={15} /></button>}
       </div>
       {geminiKeyError && <div className="java-error">{geminiKeyError}</div>}
+      <label className="setting-checkbox-row">
+        <input type="checkbox" checked={aiHelperEnabled} disabled={aiHelperSaving} onChange={(event) => void toggleAiHelper(event.target.checked)} />
+        <span>Показати "AI Helper" в бічній панелі (загальна допомога по лаунчеру — інстанси, моди, Java, акаунти)</span>
+      </label>
+      {aiHelperEnabled && !geminiKeySaved && <p className="data-dir-note">Пункт з'явиться в сайдбарі, щойно збережеш API-ключ вище — вмикача самого по собі недостатньо.</p>}
     </div></div></section>
 
     <section className="settings-card"><div className="setting-row"><div className="setting-icon"><Sun size={18} /></div><div><h3>Appearance</h3><p>Switch between a dark and light launcher theme.</p></div><button className="toggle" onClick={toggleTheme} aria-label="Toggle theme">{isDark ? <Moon size={15} /> : <Sun size={15} />}</button></div></section>

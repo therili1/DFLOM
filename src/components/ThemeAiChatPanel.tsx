@@ -8,16 +8,38 @@ export type ChatMode = "develop" | "update";
 type Props = {
   hasKey: boolean | null;
   onCssApplied: (path: string) => void;
+  /** Called instead of onCssApplied when the reply's fence is labeled for a
+   *  specific page (```css:sidebar) -- see HIDDEN_CHAT_INSTRUCTIONS in
+   *  lib.rs. Meaningful either in "update" mode (there's an active
+   *  installed theme to write pages/<key>.css into directly) or, when
+   *  `draftMode` is set, in "develop" mode too (writes a standalone temp
+   *  file instead, whose path is passed as the second argument so the
+   *  caller can stash it the same way it stashes onCssApplied's path). If
+   *  omitted, page-labeled fences fall back to being applied as a plain
+   *  custom.css like any other. */
+  onPageCssApplied?: (pageKey: string, draftPath?: string) => void;
+  /** Set by Theme Maker (packing a NEW, not-yet-installed theme): a
+   *  page-targeted apply can't write into an installed theme's pages/
+   *  folder because there isn't one yet, so it writes a standalone temp
+   *  file instead -- same as an untargeted apply, just kept separate per
+   *  page key. Theme Editor (editing an already-installed theme) leaves
+   *  this unset so page-targeted applies go straight to disk. */
+  draftMode?: boolean;
 };
 
-// A ```css fence anywhere in a reply means there's something the user
-// could apply as their theme's custom.css -- shown as a per-message
-// "Apply as custom CSS" action rather than auto-applying every reply.
-function containsCssFence(text: string): boolean {
-  return text.includes("```css") || (text.includes("```") && /[.#][a-zA-Z-]/.test(text));
+// A ```css or ```css:<page-key> fence anywhere in a reply means there's
+// something the user could apply -- shown as a per-message "Apply" action
+// rather than auto-applying every reply. Returns the page key when the
+// fence is labeled (```css:sidebar -> "sidebar"), or null for a plain
+// ```css (or unlabeled ```) fence.
+function detectCssFence(text: string): { present: boolean; pageKey: string | null } {
+  const labeled = text.match(/```css:([a-z0-9-]+)/i);
+  if (labeled) return { present: true, pageKey: labeled[1].toLowerCase() };
+  const present = text.includes("```css") || (text.includes("```") && /[.#][a-zA-Z-]/.test(text));
+  return { present, pageKey: null };
 }
 
-export default function ThemeAiChatPanel({ hasKey, onCssApplied }: Props) {
+export default function ThemeAiChatPanel({ hasKey, onCssApplied, onPageCssApplied, draftMode }: Props) {
   const [mode, setMode] = useState<ChatMode>("develop");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -54,12 +76,23 @@ export default function ThemeAiChatPanel({ hasKey, onCssApplied }: Props) {
     }
   };
 
-  const applyMessage = async (index: number, text: string) => {
+  const applyMessage = async (index: number, text: string, pageKey: string | null) => {
     setError(null);
     setApplyingIndex(index);
     try {
-      const path = await ThemeEngineService.saveChatMessageAsCss(text);
-      onCssApplied(path);
+      // Target a page when the caller opted in (onPageCssApplied given) AND
+      // either draftMode is set (Theme Maker -- writes a standalone temp
+      // file, no active theme required) or we're in "update" mode (Theme
+      // Editor -- there's an active installed theme to write
+      // pages/<key>.css into directly). Otherwise treat the fence like a
+      // normal, untargeted one.
+      const targetKey = pageKey && onPageCssApplied && (draftMode || mode === "update") ? pageKey : null;
+      const result = await ThemeEngineService.saveChatMessageAsCss(text, targetKey, !!draftMode);
+      if (targetKey) {
+        onPageCssApplied!(targetKey, draftMode ? result : undefined);
+      } else {
+        onCssApplied(result);
+      }
       setAppliedIndex(index);
     } catch (applyError) {
       setError(applyError instanceof Error ? applyError.message : String(applyError));
@@ -109,19 +142,22 @@ export default function ThemeAiChatPanel({ hasKey, onCssApplied }: Props) {
         }}
       >
         {message.text}
-        {message.role === "assistant" && containsCssFence(message.text) && (
-          <div style={{ marginTop: 6 }}>
+        {message.role === "assistant" && (() => {
+          const fence = detectCssFence(message.text);
+          if (!fence.present) return null;
+          const targeting = fence.pageKey && onPageCssApplied && (draftMode || mode === "update");
+          return <div style={{ marginTop: 6 }}>
             <button
               className="secondary-button"
-              onClick={() => void applyMessage(index, message.text)}
+              onClick={() => void applyMessage(index, message.text, fence.pageKey)}
               disabled={applyingIndex === index}
               style={{ fontSize: 12, padding: "4px 8px" }}
             >
               {applyingIndex === index ? <LoaderCircle className="spin" size={12} /> : appliedIndex === index ? <Check size={12} /> : <Sparkles size={12} />}
-              {appliedIndex === index ? " Applied" : " Apply as custom CSS"}
+              {appliedIndex === index ? " Applied" : targeting ? ` Apply to pages/${fence.pageKey}.css` : " Apply as custom CSS"}
             </button>
-          </div>
-        )}
+          </div>;
+        })()}
       </div>)}
       {sending && <div style={{ alignSelf: "flex-start", fontSize: 13, opacity: 0.7 }}><LoaderCircle className="spin" size={13} /> Thinking...</div>}
     </div>}

@@ -17,9 +17,10 @@ use crate::{data_root, http_client};
 use crate::theme::{theme_install_impl, ThemeInfo};
 
 const SUPABASE_URL: &str = "https://nsupmqvlanakljvtfjak.supabase.co";
-// TODO: paste the FULL publishable key here (it was truncated when given
-// to me as "sb_publishable_..."). Everything else is wired up to use it.
-const SUPABASE_PUBLISHABLE_KEY: &str = "sb_publishable_REPLACE_ME";
+const SUPABASE_PUBLISHABLE_KEY: &str = "sb_publishable_GZ_9byLqNKKZSBRjLek2qw_lgSxgslS";
+
+pub(crate) const SHARED_SUPABASE_URL: &str = SUPABASE_URL;
+pub(crate) const SHARED_SUPABASE_PUBLISHABLE_KEY: &str = SUPABASE_PUBLISHABLE_KEY;
 
 fn functions_url(path: &str) -> String {
     format!("{SUPABASE_URL}/functions/v1/{path}")
@@ -97,19 +98,20 @@ pub struct MarketplaceTheme {
 
 #[derive(Deserialize)]
 struct ListThemesResponse {
-    #[serde(default)]
-    themes: Vec<MarketplaceTheme>,
+    #[serde(default, alias = "themes")]
+    data: Vec<MarketplaceTheme>,
 }
 
-/// Some Edge Functions may just return a bare JSON array instead of
-/// `{ "themes": [...] }` -- accept either shape rather than guessing wrong
-/// and breaking on a backend detail we don't control.
+/// The `list_themes` Edge Function returns `{ "data": [...], "error": null }`.
+/// Some Edge Functions instead wrap under `themes`, or just return a bare
+/// JSON array -- accept all three shapes rather than guessing wrong and
+/// breaking on a backend detail we don't control.
 fn parse_list_themes(body: &str) -> Result<Vec<MarketplaceTheme>, String> {
     if let Ok(wrapped) = serde_json::from_str::<ListThemesResponse>(body) {
-        if !wrapped.themes.is_empty() { return Ok(wrapped.themes); }
+        if !wrapped.data.is_empty() { return Ok(wrapped.data); }
     }
     serde_json::from_str::<Vec<MarketplaceTheme>>(body)
-        .or_else(|_| serde_json::from_str::<ListThemesResponse>(body).map(|w| w.themes))
+        .or_else(|_| serde_json::from_str::<ListThemesResponse>(body).map(|w| w.data))
         .map_err(|error| format!("Unexpected response from the theme marketplace: {error}"))
 }
 

@@ -232,11 +232,21 @@ fn finish_login(app: AppHandle, ms_access_token: String, ms_refresh_token: Optio
     let account = Account {
         id: profile.id.clone(),
         username: profile.name,
-        uuid: profile.id,
+        uuid: profile.id.clone(),
         r#type: "Microsoft".into(),
         created_at: chrono::Utc::now().to_rfc3339(),
         last_played: None,
-        skin_path: profile.skins.first().map(|s| s.url.clone()).unwrap_or_default(),
+        // BUG FIX: this used to be the raw, un-cropped 64x64 skin texture
+        // sheet straight from Mojang (`profile.skins.first().url`), so the
+        // account card showed the whole unfolded skin layout instead of a
+        // rendered head -- see the account cards screenshot (Offline
+        // accounts looked right because they already went through
+        // mc-heads.net; Microsoft accounts didn't). Routing through
+        // mc-heads by UUID makes it render an actual head crop, and stays
+        // correct automatically if the player changes their skin later,
+        // since mc-heads looks the skin up live by UUID rather than us
+        // caching a specific texture URL.
+        skin_path: format!("https://mc-heads.net/avatar/{}", profile.id),
         cape_path: profile.capes.first().map(|c| c.url.clone()).unwrap_or_default(),
         favorite: false,
         email: None,

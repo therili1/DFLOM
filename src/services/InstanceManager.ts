@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type Instance = { name: string; minecraftVersion: string; loader: string; loaderVersion?: string; created: string; size: number; gameDirectory?: string };
+export type Instance = { name: string; minecraftVersion: string; loader: string; loaderVersion?: string; created: string; size: number; gameDirectory?: string; iconPath?: string };
 export type CreateInstanceInput = { name: string; minecraftVersion: string; loader: string; loaderVersion?: string; gameDirectory?: string };
 export type LaunchInstanceInput = {
   instanceDirectory: string;
